@@ -1,0 +1,369 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity ^0.8.20;
+
+import "./WTTPStorage.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+/// @title HTTP Request Line Structure
+/// @notice Represents the first line of an HTTP request
+/// @dev Contains protocol version and resource path
+struct RequestLine {
+    /// @notice Protocol version (e.g., "WTTP/2.0")
+    string protocol;
+    /// @notice Resource path being requested
+    string path;
+}
+
+/// @title HTTP Response Line Structure
+/// @notice Represents the first line of an HTTP response
+/// @dev Contains protocol version and status code
+struct ResponseLine {
+    /// @notice Protocol version (e.g., "WTTP/2.0")
+    string protocol;
+    /// @notice HTTP status code (e.g., 200, 404)
+    uint16 code;
+}
+
+struct Range {
+    int256 start;
+    int256 end;
+}
+
+// Same for GET & HEAD
+struct HEADRequest {
+    RequestLine requestLine;
+    bytes2[] accept;
+    bytes2[] acceptCharset;
+    bytes2[] acceptLanguage;
+    bytes2[] acceptEncoding;
+    uint256 ifModifiedSince; // timestamp
+    bytes32 ifNoneMatch; // etag
+    Range range; // start & end
+}
+
+/// @title HEAD Response Structure
+/// @notice Contains metadata and header information for HEAD requests
+/// @dev Used as base response type for other methods
+struct HEADResponse {
+    /// @notice Response status line
+    ResponseLine responseLine;
+    /// @notice Resource header information
+    HeaderInfo headerInfo;
+    /// @notice Resource metadata
+    ResourceMetadata metadata;
+    /// @notice Resource content hash
+    bytes32 etag;
+}
+
+/// @title LOCATE Response Structure
+/// @notice Extended response for LOCATE requests
+/// @dev Includes storage addresses and data point locations
+struct LOCATEResponse {
+    /// @notice Base HEAD response
+    HEADResponse head;
+    /// @notice Address of data point storage contract
+    address dpsAddress;
+    /// @notice Array of data point addresses
+    bytes32[] dataPoints;
+}
+
+/// @title PUT Response Structure
+/// @notice Extended response for PUT/PATCH requests
+/// @dev Includes registry information and data point address
+struct PUTResponse {
+    /// @notice Base HEAD response
+    HEADResponse head;
+    /// @notice Address of data point registry
+    address dprAddress;
+    /// @notice Address of created/updated data point
+    bytes32 dataPointAddress;
+}
+
+bytes32 constant WTTP_VERSION = keccak256(abi.encode("WTTP/2.0"));
+
+/// @notice Checks WTTP version compatibility
+/// @param _wttpVersion Protocol version to check
+/// @return bool True if version is compatible
+function _compatibleWTTPVersion(string memory _wttpVersion) pure returns (bool) {
+    if(keccak256(abi.encode(_wttpVersion)) != WTTP_VERSION) {
+        return false;
+    }
+    return true;
+}
+
+function calculateEtag(
+    ResourceMetadata memory _metadata, 
+    bytes32[] memory _dataPoints
+) pure returns (bytes32) {
+    return keccak256(abi.encode(_metadata, _dataPoints));
+}
+
+/// @title WTTP Site Contract
+/// @notice Implements core WTTP protocol methods
+/// @dev Handles HTTP-like operations on the blockchain
+abstract contract WTTPSite is WTTPStorageV3 {
+
+    /// @notice Checks WTTP version compatibility
+    /// @param _wttpVersion Protocol version to check
+    /// @return bool True if version is compatible
+    function compatibleWTTPVersion(string memory _wttpVersion) public pure returns (bool) {
+        return _compatibleWTTPVersion(_wttpVersion);
+    }
+
+    constructor(address _dpr, address _owner) WTTPStorageV3(_dpr, _owner) {}
+    
+    function _methodAllowed(string memory _path, Method _method) internal view returns (bool) {
+        uint16 methodBit = uint16(1 << uint8(_method)); // Create a bitmask for the method
+        return (_readHeader(_path).methods & methodBit != 0) || _isResourceAdmin(_path, msg.sender);
+    }
+
+    /// @notice Handles HTTP HEAD requests
+    /// @param requestLine Request information
+    /// @return head Response with header information
+    function HEAD(
+        RequestLine memory requestLine
+    )
+        public
+        view
+        returns (HEADResponse memory head)
+    {
+        string memory _path = requestLine.path;
+        head.headerInfo = _readHeader(_path);
+        head.metadata = _readMetadata(_path);
+        bytes32[] memory _dataPoints = _readResource(_path);
+        head.etag = keccak256(abi.encode(_dataPoints));
+
+        if (!compatibleWTTPVersion(requestLine.protocol)) {
+            head.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: 505
+            });
+        }
+        // 400 codes
+        else if (!_methodAllowed(_path, Method.HEAD)) {
+            head.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: 405
+            });
+        } else if (_dataPoints.length == 0) {
+            head.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: 404
+            });
+        } 
+        // 300 codes
+        else if (head.headerInfo.redirect.code != 0) {
+            head.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: head.headerInfo.redirect.code
+            });
+        }
+        // 200 codes
+        else if (head.metadata.size == 0) {
+            head.dataStructure = DPS().dataPointInfo(_dataPoints[0]);
+            head.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: 204
+            });
+        } else if (head.metadata.size > 0) {
+            head.dataStructure = DPS().dataPointInfo(_dataPoints[0]);
+            head.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: 200
+            });
+        }
+        return head;
+    }
+
+    /// @notice Handles LOCATE requests to find resource storage locations
+    /// @dev Returns storage contract address and data point addresses
+    /// @param requestLine Request information
+    /// @return locateResponse Response containing storage locations
+    function LOCATE(
+        RequestLine memory requestLine
+    )
+        public
+        view
+        returns (LOCATEResponse memory locateResponse)
+    {
+        string memory _path = requestLine.path;
+        locateResponse.head = HEAD(requestLine);
+        locateResponse.dpsAddress = address(DPS());
+        if (!_methodAllowed(_path, Method.LOCATE)) {
+            locateResponse.head.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: 405
+            });
+        } else {
+            locateResponse.dataPoints = _readResource(_path);
+        }
+    }
+
+    /// @notice Handles PATH requests for content negotiation
+    /// @dev Returns resolved path based on language and charset preferences
+    /// @param requestLine Request information
+    /// @param _language Preferred language code
+    /// @param _charset Preferred character set
+    /// @return pathResponse Response containing resolved path
+    function PATH(
+        RequestLine memory requestLine,
+        bytes2 _language,
+        bytes2 _charset
+    ) public view returns (HEADResponse memory pathResponse) {
+        string memory _path = requestLine.path;
+        if (!_methodAllowed(_path, Method.PATH)) {
+            pathResponse.responseLine = ResponseLine({
+                protocol: requestLine.protocol,
+                code: 405
+            });
+        } else {
+            pathResponse.headerInfo = _readHeader(_path);
+            pathResponse.headerInfo.redirect.code = 301;
+            pathResponse.headerInfo.redirect.location = _readVariation(_path, _language, _charset);
+            pathResponse.metadata = _readMetadata(_path);
+            bytes32[] memory _dataPoints = _readResource(_path);
+            pathResponse.dataStructure = DPS().dataPointInfo(_dataPoints[0]);
+            pathResponse.etag = keccak256(abi.encode(_dataPoints));
+        }
+        return pathResponse;
+    }
+
+    /// @notice Handles DEFINE requests to update resource headers
+    /// @dev Only accessible to resource administrators
+    /// @param _requestLine Request information
+    /// @param _header New header information
+    /// @return defineResponse Response containing updated header information
+    function DEFINE(
+        RequestLine memory _requestLine,
+        HeaderInfo memory _header
+    ) public returns (HEADResponse memory defineResponse) {
+        string memory _path = _requestLine.path;
+        if (_methodAllowed(_path, Method.DEFINE)) {
+            _writeHeader(_path, _header);
+            defineResponse = HEAD(_requestLine);
+        } else {
+            defineResponse.responseLine = ResponseLine({
+                protocol: _requestLine.protocol,
+                code: 405
+            });
+        }
+
+        emit DEFINESuccess(msg.sender, _requestLine, defineResponse);
+    }
+
+    /// @notice Handles DELETE requests to remove resources
+    /// @dev Only accessible to resource administrators
+    /// @param _requestLine Request information
+    /// @return deleteResponse Response confirming deletion
+    function DELETE(
+        RequestLine memory _requestLine
+    ) public returns (HEADResponse memory deleteResponse) {
+        string memory _path = _requestLine.path;
+        if (_methodAllowed(_path, Method.DELETE)) {
+            _deleteResource(_path);
+            deleteResponse = HEAD(_requestLine);
+        } else {
+            deleteResponse.responseLine = ResponseLine({
+                protocol: _requestLine.protocol,
+                code: 405
+            });
+        }
+
+        emit DELETESuccess(msg.sender, _requestLine, deleteResponse);
+    }
+
+    /// @notice Handles PUT requests to create new resources
+    /// @dev Requires payment for storage costs
+    /// @param _requestLine Request information
+    /// @param _mimeType Resource MIME type
+    /// @param _charset Character encoding
+    /// @param _location Storage location type
+    /// @param _publisher Content publisher address
+    /// @param _data Resource content
+    /// @return putResponse Response containing created resource information
+    function PUT(
+        RequestLine memory _requestLine,
+        bytes2 _mimeType,
+        bytes2 _charset,
+        bytes2 _location,
+        address _publisher,
+        bytes memory _data
+    ) public payable returns (PUTResponse memory putResponse) {
+        string memory _path = _requestLine.path;
+        if (_methodAllowed(_path, Method.PUT)) {
+            putResponse.dataPointAddress =
+                _createResource(
+                _path,
+                _mimeType,
+                _charset,
+                _location,
+                _publisher,
+                _data
+            );
+            putResponse.head = HEAD(_requestLine);
+            putResponse.head.responseLine = ResponseLine({
+                protocol: _requestLine.protocol,
+                code: 201
+            });
+        } else {
+            putResponse.head.responseLine = ResponseLine({
+                protocol: _requestLine.protocol,
+                code: 405
+            });
+        }
+
+        emit PUTSuccess(msg.sender, _requestLine, putResponse);
+    }
+
+    /// @notice Handles PATCH requests to update existing resources
+    /// @dev Requires payment for storage costs
+    /// @param _requestLine Request information
+    /// @param _data Updated content
+    /// @param _chunk Chunk index for partial updates
+    /// @param _publisher Content publisher address
+    /// @return patchResponse Response containing updated resource information
+    function PATCH(
+        RequestLine memory _requestLine,
+        bytes memory _data,
+        uint256 _chunk,
+        address _publisher
+    ) public payable returns (PUTResponse memory patchResponse) {
+        string memory _path = _requestLine.path;
+        if (_methodAllowed(_path, Method.PATCH)) {
+            patchResponse.dataPointAddress = _updateResource(_path, _data, _chunk, _publisher);
+            patchResponse.head = HEAD(_requestLine);
+        } else {
+            patchResponse.head.responseLine = ResponseLine({
+                protocol: _requestLine.protocol,
+                code: 405
+            });
+        }
+
+        emit PATCHSuccess(msg.sender, _requestLine, patchResponse);
+    }
+
+    // Define events
+    /// @notice Emitted when a PATCH request succeeds
+    /// @param publisher Address of content publisher
+    /// @param requestLine Original request information
+    /// @param patchResponse Response details
+    event PATCHSuccess(address indexed publisher, RequestLine requestLine, PUTResponse patchResponse);
+
+    /// @notice Emitted when a PUT request succeeds
+    /// @param publisher Address of content publisher
+    /// @param requestLine Original request information
+    /// @param putResponse Response details
+    event PUTSuccess(address indexed publisher, RequestLine requestLine, PUTResponse putResponse);
+
+    /// @notice Emitted when a DELETE request succeeds
+    /// @param publisher Address of content publisher
+    /// @param requestLine Original request information
+    /// @param deleteResponse Response details
+    event DELETESuccess(address indexed publisher, RequestLine requestLine, HEADResponse deleteResponse);
+
+    /// @notice Emitted when a DEFINE request succeeds
+    /// @param publisher Address of content publisher
+    /// @param requestLine Original request information
+    /// @param defineResponse Response details
+    event DEFINESuccess(address indexed publisher, RequestLine requestLine, HEADResponse defineResponse);
+}
