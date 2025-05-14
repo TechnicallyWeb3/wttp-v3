@@ -236,6 +236,8 @@ describe("TestStorage", function () {
     it("Should determine maximum number of chunks that can be added to a resource", async function () {
       const { testStorage, owner, dpr } = await loadFixture(deployTestStorageFixture);
       
+      // how do we increase test timeout?
+      this.timeout(3600000); // 1 hour in milliseconds
       // Set up metadata first
       const headerInfo = {
         cache: { 
@@ -302,13 +304,16 @@ describe("TestStorage", function () {
         //   console.log(`        -> Next chunk ${chunkCount}`);
           
           // Verify we can still read the chunks (this will fail when array gets too big)
-          if (chunkCount % 10 === 0) {
+          if (chunkCount % 5 === 0) {
             await testStorage.testReadResource("/chunk-test.txt");
+          } 
+
+          if (chunkCount % 1000 === 0) {
             console.log(`        -> Read chunk ${chunkCount}`);
           }
         } catch (error) {
           txError = true;
-          console.log(`        -> Failed after adding ${chunkCount} chunks`);
+          console.log(`        -> Failed after adding ${chunkCount} chunks`); //11930 477MB@40kb
           console.log(error);
         }
       }
