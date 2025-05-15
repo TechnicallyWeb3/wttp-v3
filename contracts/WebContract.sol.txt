@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 /// @notice Represents the first line of an HTTP request
 /// @dev Contains protocol version and resource path
 struct RequestLine {
-    /// @notice Protocol version (e.g., "WTTP/2.0")
+    /// @notice Protocol version (e.g., "WTTP/3.0")
     string protocol;
     /// @notice Resource path being requested
     string path;
@@ -18,28 +18,18 @@ struct RequestLine {
 /// @notice Represents the first line of an HTTP response
 /// @dev Contains protocol version and status code
 struct ResponseLine {
-    /// @notice Protocol version (e.g., "WTTP/2.0")
+    /// @notice Protocol version (e.g., "WTTP/3.0")
     string protocol;
     /// @notice HTTP status code (e.g., 200, 404)
     uint16 code;
 }
 
-struct Range {
-    int256 start;
-    int256 end;
-}
-
-// Same for GET & HEAD
 struct HEADRequest {
     RequestLine requestLine;
-    bytes2[] accept;
-    bytes2[] acceptCharset;
-    bytes2[] acceptLanguage;
-    bytes2[] acceptEncoding;
     uint256 ifModifiedSince; // timestamp
     bytes32 ifNoneMatch; // etag
-    Range range; // start & end
 }
+
 
 /// @title HEAD Response Structure
 /// @notice Contains metadata and header information for HEAD requests
@@ -55,16 +45,19 @@ struct HEADResponse {
     bytes32 etag;
 }
 
-/// @title LOCATE Response Structure
-/// @notice Extended response for LOCATE requests
-/// @dev Includes storage addresses and data point locations
-struct LOCATEResponse {
-    /// @notice Base HEAD response
-    HEADResponse head;
-    /// @notice Address of data point storage contract
-    address dpsAddress;
-    /// @notice Array of data point addresses
-    bytes32[] dataPoints;
+struct Range {
+    int256 start;
+    int256 end;
+}
+
+struct PUTRequest {
+    HEADRequest head;
+    bytes2 mimeType;
+    bytes2 charset;
+    bytes2 encoding;
+    bytes2 language;
+    bytes2 location;
+    DataRegistration[] data;
 }
 
 /// @title PUT Response Structure
@@ -73,13 +66,48 @@ struct LOCATEResponse {
 struct PUTResponse {
     /// @notice Base HEAD response
     HEADResponse head;
-    /// @notice Address of data point registry
-    address dprAddress;
     /// @notice Address of created/updated data point
-    bytes32 dataPointAddress;
+    bytes32[] dataPointAddresses;
 }
 
-bytes32 constant WTTP_VERSION = keccak256(abi.encode("WTTP/2.0"));
+struct PATCHRequest {
+    HEADRequest head;
+    DataRegistration[] data;
+}
+
+// PATCHResponse is the same as PUTResponse
+
+struct LOCATERequest {
+    HEADRequest head;
+    Range chunks; // start & end by chunk index, not bytes
+}
+
+/// @title LOCATE Response Structure
+/// @notice Extended response for LOCATE requests
+/// @dev Includes storage addresses and data point locations
+struct LOCATEResponse {
+    /// @notice Base HEAD response
+    HEADResponse head;
+    /// @notice Address of data point storage contract
+    address dpsAddress; // this assumes all data points are stored in the same contract
+    /// @notice Array of data point addresses
+    bytes32[] dataPoints;
+}
+
+struct DEFINERequest {
+    HEADRequest head;
+    HeaderInfo header;
+}
+
+// DEFINEResponse is the same as HEADResponse
+
+// this belongs in the 
+// struct GETRequest {
+//     HEADRequest head;
+//     Range range; // start & end
+// }
+
+bytes32 constant WTTP_VERSION = keccak256(abi.encode("WTTP/3.0"));
 
 /// @notice Checks WTTP version compatibility
 /// @param _wttpVersion Protocol version to check
@@ -114,141 +142,126 @@ abstract contract WTTPSite is WTTPStorageV3 {
     
     function _methodAllowed(string memory _path, Method _method) internal view returns (bool) {
         uint16 methodBit = uint16(1 << uint8(_method)); // Create a bitmask for the method
-        return (_readHeader(_path).methods & methodBit != 0) || _isResourceAdmin(_path, msg.sender);
+        return (_readHeader(_readMetadata(_path).header).methods & methodBit != 0) || 
+            _isSuperAdmin(msg.sender);
     }
 
     /// @notice Handles HTTP HEAD requests
-    /// @param requestLine Request information
+    /// @param headRequest Request information
     /// @return head Response with header information
     function HEAD(
-        RequestLine memory requestLine
+        HEADRequest memory headRequest
     )
         public
         view
         returns (HEADResponse memory head)
     {
-        string memory _path = requestLine.path;
-        head.headerInfo = _readHeader(_path);
+        string memory _path = headRequest.requestLine.path;
+        head.responseLine.protocol = headRequest.requestLine.protocol;
+        head.responseLine.code = 500;
         head.metadata = _readMetadata(_path);
+        head.headerInfo = _readHeader(head.metadata.header);
         bytes32[] memory _dataPoints = _readResource(_path);
-        head.etag = keccak256(abi.encode(_dataPoints));
+        head.etag = calculateEtag(head.metadata, _dataPoints);
 
-        if (!compatibleWTTPVersion(requestLine.protocol)) {
-            head.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: 505
-            });
+        if (!compatibleWTTPVersion(head.responseLine.protocol)) {
+            head.responseLine.code = 505;
         }
         // 400 codes
         else if (!_methodAllowed(_path, Method.HEAD)) {
-            head.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: 405
-            });
-        } else if (_dataPoints.length == 0) {
-            head.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: 404
-            });
+            head.responseLine.code = 405;
+        } else if (!_resourceExists(_path)) {
+            head.responseLine.code = 404;
         } 
         // 300 codes
         else if (head.headerInfo.redirect.code != 0) {
-            head.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: head.headerInfo.redirect.code
-            });
+            // 
+            head.responseLine.code = head.headerInfo.redirect.code;
         }
         // 200 codes
         else if (head.metadata.size == 0) {
-            head.dataStructure = DPS().dataPointInfo(_dataPoints[0]);
-            head.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: 204
-            });
+            head.responseLine.code = 204;
         } else if (head.metadata.size > 0) {
-            head.dataStructure = DPS().dataPointInfo(_dataPoints[0]);
-            head.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: 200
-            });
+            head.responseLine.code = 200;
         }
-        return head;
     }
 
     /// @notice Handles LOCATE requests to find resource storage locations
     /// @dev Returns storage contract address and data point addresses
-    /// @param requestLine Request information
+    /// @param locateRequest Request information
     /// @return locateResponse Response containing storage locations
     function LOCATE(
-        RequestLine memory requestLine
+        LOCATERequest memory locateRequest
     )
         public
         view
         returns (LOCATEResponse memory locateResponse)
     {
-        string memory _path = requestLine.path;
-        locateResponse.head = HEAD(requestLine);
+        locateResponse.head = HEAD(locateRequest.head);
         locateResponse.dpsAddress = address(DPS());
-        if (!_methodAllowed(_path, Method.LOCATE)) {
-            locateResponse.head.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: 405
-            });
-        } else {
-            locateResponse.dataPoints = _readResource(_path);
-        }
-    }
+        locateResponse.dataPoints = _readResource(locateRequest.head.requestLine.path);
 
-    /// @notice Handles PATH requests for content negotiation
-    /// @dev Returns resolved path based on language and charset preferences
-    /// @param requestLine Request information
-    /// @param _language Preferred language code
-    /// @param _charset Preferred character set
-    /// @return pathResponse Response containing resolved path
-    function PATH(
-        RequestLine memory requestLine,
-        bytes2 _language,
-        bytes2 _charset
-    ) public view returns (HEADResponse memory pathResponse) {
-        string memory _path = requestLine.path;
-        if (!_methodAllowed(_path, Method.PATH)) {
-            pathResponse.responseLine = ResponseLine({
-                protocol: requestLine.protocol,
-                code: 405
-            });
-        } else {
-            pathResponse.headerInfo = _readHeader(_path);
-            pathResponse.headerInfo.redirect.code = 301;
-            pathResponse.headerInfo.redirect.location = _readVariation(_path, _language, _charset);
-            pathResponse.metadata = _readMetadata(_path);
-            bytes32[] memory _dataPoints = _readResource(_path);
-            pathResponse.dataStructure = DPS().dataPointInfo(_dataPoints[0]);
-            pathResponse.etag = keccak256(abi.encode(_dataPoints));
+        if (
+            !(locateRequest.chunks.start == 0 && (
+                locateRequest.chunks.end == 0 || 
+                locateRequest.chunks.end == int256(locateResponse.dataPoints.length)
+            ))
+        ) {
+
+            uint256 _start;
+            uint256 _end = locateResponse.dataPoints.length;
+
+            if (
+                locateRequest.chunks.end < 0 && // is negative
+                _end >= uint256(-locateRequest.chunks.end) // is in range
+            ) {
+                _end = uint256(int256(locateResponse.dataPoints.length) + locateRequest.chunks.end); 
+                // add negative to end
+            } else {
+                _end = uint256(locateRequest.chunks.end); // negatives will cast large
+            }
+
+            if (locateResponse.dataPoints.length < _end) {
+                locateResponse.head.responseLine.code = 416;
+                return locateResponse;
+            }
+
+            if (
+                locateRequest.chunks.start < 0 && // is negative
+                _end >= uint256(-locateRequest.chunks.start) // is in range
+            ) {
+                _start = uint256(
+                    int256(locateResponse.dataPoints.length) + locateRequest.chunks.start
+                ); 
+                // add negative to end
+            } else {
+                _start = uint256(locateRequest.chunks.start); // negatives will cast large
+            }
+            if (_start > _end) {
+                locateResponse.head.responseLine.code = 416;
+                return locateResponse;
+            }
+
+            bytes32[] memory _dataPoints = new bytes32[](_end - _start);
+            for (uint256 i = _start; i < _end; i++) {
+                _dataPoints[i - _start] = locateResponse.dataPoints[i];
+            }
+            locateResponse.dataPoints = _dataPoints;
         }
-        return pathResponse;
     }
 
     /// @notice Handles DEFINE requests to update resource headers
     /// @dev Only accessible to resource administrators
-    /// @param _requestLine Request information
-    /// @param _header New header information
+    /// @param defineRequest Request information
     /// @return defineResponse Response containing updated header information
     function DEFINE(
-        RequestLine memory _requestLine,
-        HeaderInfo memory _header
+        DEFINERequest memory defineRequest
     ) public returns (HEADResponse memory defineResponse) {
-        string memory _path = _requestLine.path;
-        if (_methodAllowed(_path, Method.DEFINE)) {
-            _writeHeader(_path, _header);
-            defineResponse = HEAD(_requestLine);
-        } else {
-            defineResponse.responseLine = ResponseLine({
-                protocol: _requestLine.protocol,
-                code: 405
-            });
-        }
+        string memory _path = defineRequest.head.requestLine.path;
+        _createHeader(defineRequest.header);
+        defineResponse = HEAD(defineRequest.head);
 
-        emit DEFINESuccess(msg.sender, _requestLine, defineResponse);
+        emit DEFINESuccess(msg.sender, defineRequest.head.requestLine, defineResponse);
     }
 
     /// @notice Handles DELETE requests to remove resources
@@ -293,13 +306,13 @@ abstract contract WTTPSite is WTTPStorageV3 {
         if (_methodAllowed(_path, Method.PUT)) {
             putResponse.dataPointAddress =
                 _createResource(
-                _path,
-                _mimeType,
-                _charset,
-                _location,
-                _publisher,
-                _data
-            );
+                    _path,
+                    _mimeType,
+                    _charset,
+                    _location,
+                    _publisher,
+                    _data
+                );
             putResponse.head = HEAD(_requestLine);
             putResponse.head.responseLine = ResponseLine({
                 protocol: _requestLine.protocol,

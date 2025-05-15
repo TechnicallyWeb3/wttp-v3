@@ -11,22 +11,22 @@ abstract contract WTTPPermissionsV3 is AccessControl {
 
     /// @notice Role identifier for site administrators
     bytes32 internal constant SITE_ADMIN_ROLE = keccak256("SITE_ADMIN_ROLE");
-    /// @notice Role identifier for the public
-    /// @dev This role works in reverse, a user can be assigned as a blacklisted role
-    /// @dev This means if you have the public role, hasRole(PUBLIC_ROLE, account) will return false
-    bytes32 internal constant PUBLIC_ROLE = keccak256("PUBLIC_ROLE");
+    // /// @notice Role identifier for the public
+    // /// @dev This role works in reverse, a user can be assigned as a blacklisted role
+    // /// @dev This means if you have the public role, hasRole(PUBLIC_ROLE, account) will return false
+    // bytes32 internal constant PUBLIC_ROLE = keccak256("PUBLIC_ROLE");
 
     /// @notice Sets up initial roles and permissions
     /// @param _owner Address of the contract owner
     constructor(address _owner) {
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
         _setRoleAdmin(SITE_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
-        _setRoleAdmin(PUBLIC_ROLE, SITE_ADMIN_ROLE);
+        // _setRoleAdmin(PUBLIC_ROLE, SITE_ADMIN_ROLE);
         _grantRole(SITE_ADMIN_ROLE, _owner);
     }
 
     modifier validRole(bytes32 role) {
-        if(role == PUBLIC_ROLE || role == SITE_ADMIN_ROLE || role == DEFAULT_ADMIN_ROLE) {
+        if(role == SITE_ADMIN_ROLE || role == DEFAULT_ADMIN_ROLE) {
             revert InvalidRole();
         }
         _;
@@ -58,16 +58,16 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         _;
     }
 
-    function _isPublic(address account) internal view returns (bool) {
-        return !hasRole(PUBLIC_ROLE, account);
-    }
+    // function _isPublic(address account) internal view returns (bool) {
+    //     return !hasRole(PUBLIC_ROLE, account);
+    // }
 
-    modifier onlyPublic() {
-        if(!_isPublic(msg.sender)) {
-            revert Blacklisted(msg.sender);
-        }
-        _;
-    }
+    // modifier onlyPublic() {
+    //     if(!_isPublic(msg.sender)) {
+    //         revert Blacklisted(msg.sender);
+    //     }
+    //     _; 
+    // }
        
     // Allows site admins to create resource-specific admin roles
     // modifier not needed since only site admins can use grantRole
@@ -80,8 +80,6 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         super.grantRole(role, account);
         if(role == SITE_ADMIN_ROLE) {
             emit AdminRoleGranted(account);
-        } else if(role == PUBLIC_ROLE) {
-            emit AccountBlacklisted(account);
         } else {
             emit ResourceRoleGranted(role, account);
         }
@@ -91,19 +89,9 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         super.revokeRole(role, account);
         if(role == SITE_ADMIN_ROLE) {
             emit AdminRoleRevoked(account);
-        } else if(role == PUBLIC_ROLE) {
-            emit AccountWhitelisted(account);
         } else {
             emit ResourceRoleRevoked(role, account);
         }
-    }
-
-    function blacklistPublicRole(address account) external onlySiteAdmin {
-        grantRole(PUBLIC_ROLE, account);
-    }
-
-    function whitelistPublicRole(address account) external onlySiteAdmin {
-        revokeRole(PUBLIC_ROLE, account);
     }
 
 }
