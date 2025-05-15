@@ -11,7 +11,11 @@ contract TestStorage is WTTPStorageV3 {
     event Success();
     event Error();
 
-    constructor(address _dpr, address _owner) WTTPStorageV3(_dpr, _owner) {}
+    constructor(
+        address _dpr, 
+        address _owner, 
+        HeaderInfo memory _defaultHeader
+    ) WTTPStorageV3(_dpr, _owner, _defaultHeader) {}
 
     function testGetHeaderAddress(HeaderInfo memory _header) public pure returns (bytes32) {
         return getHeaderAddress(_header);
@@ -72,10 +76,7 @@ contract TestStorage is WTTPStorageV3 {
     }
     
     function testUploadData(string memory _path, DataRegistration[] memory _dataRegistration) public payable returns (bytes32[] memory) {
-        return _uploadData(_path, _dataRegistration);
+        return _uploadResource(_path, _dataRegistration);
     }
     
-    function testIsResourceAdmin(string memory _path, address _account) public view returns (bool) {
-        return _isResourceAdmin(_path, _account);
-    }
 }

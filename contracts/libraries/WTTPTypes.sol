@@ -32,7 +32,7 @@ event ResourceDeleted(string path);
 
 // ============ Errors ============
 error ResourceImmutable(string path);
-error NotResourceAdmin(string path, address account);
+error Forbidden(string path, address account);
 // error OutOfBoundsChunk(string path, uint256 chunkIndex);
 
 // ============ Enum Definitions ============
@@ -154,6 +154,139 @@ function methodsToMask(Method[] memory methods) pure returns (uint16) {
 /// @return bytes32 The calculated header address
 function getHeaderAddress(HeaderInfo memory _header) pure returns (bytes32) {
     return keccak256(abi.encode(_header));
+}
+
+// ============ WTTP Site Contract ============
+/// @title HTTP Request Line Structure
+/// @notice Represents the first line of an HTTP request
+/// @dev Contains protocol version and resource path
+struct RequestLine {
+    /// @notice Protocol version (e.g., "WTTP/3.0")
+    string protocol;
+    /// @notice Resource path being requested
+    string path;
+    /// @notice WTTP method (e.g., GET, HEAD, PUT, PATCH, DELETE, LOCATE, DEFINE)
+    Method method;
+}
+
+/// @title HTTP Response Line Structure
+/// @notice Represents the first line of an HTTP response
+/// @dev Contains protocol version and status code
+struct ResponseLine {
+    /// @notice Protocol version (e.g., "WTTP/3.0")
+    string protocol;
+    /// @notice HTTP status code (e.g., 200, 404)
+    uint16 code;
+    /// @notice WTTP method (e.g., GET, HEAD, PUT, PATCH, DELETE, LOCATE, DEFINE)
+    Method method;
+}
+
+// OPTIONSRequest is the same as RequestLine
+
+struct OPTIONSResponse {
+    ResponseLine responseLine;
+    uint16 allow;
+}
+
+struct HEADRequest {
+    RequestLine requestLine;
+    uint256 ifModifiedSince; // timestamp
+    bytes32 ifNoneMatch; // etag
+}
+
+
+/// @title HEAD Response Structure
+/// @notice Contains metadata and header information for HEAD requests
+/// @dev Used as base response type for other methods
+struct HEADResponse {
+    /// @notice Response status line
+    ResponseLine responseLine;
+    /// @notice Resource header information
+    HeaderInfo headerInfo;
+    /// @notice Resource metadata
+    ResourceMetadata metadata;
+    /// @notice Resource content hash
+    bytes32 etag;
+}
+
+// consider including range and LOCATERequest in gateway contract
+struct Range {
+    int256 start;
+    int256 end;
+}
+
+struct LOCATERequest {
+    HEADRequest head;
+    Range chunks; // start & end by chunk index, not bytes
+}
+
+/// @title LOCATE Response Structure
+/// @notice Extended response for LOCATE requests
+/// @dev Includes storage addresses and data point locations
+struct LOCATEResponse {
+    /// @notice Base HEAD response
+    HEADResponse head;
+    /// @notice Array of data point addresses
+    bytes32[] dataPoints;
+}
+
+struct PUTRequest {
+    HEADRequest head;
+    bytes2 mimeType;
+    bytes2 charset;
+    bytes2 encoding;
+    bytes2 language;
+    bytes2 location;
+    DataRegistration[] data;
+}
+
+// PUTResponse is the same as LOCATEResponse
+
+struct PATCHRequest {
+    HEADRequest head;
+    DataRegistration[] data;
+}
+
+// PATCHResponse is the same as LOCATEResponse
+
+struct DEFINERequest {
+    HEADRequest head;
+    HeaderInfo data;
+}
+
+struct DEFINEResponse {
+    HEADResponse head;
+    bytes32 headerAddress;
+}
+
+bytes32 constant WTTP_VERSION = keccak256(abi.encode("WTTP/3.0"));
+
+/// @notice Checks WTTP version compatibility
+/// @param _wttpVersion Protocol version to check
+/// @return bool True if version is compatible
+function _compatibleWTTPVersion(string memory _wttpVersion) pure returns (bool) {
+    if(keccak256(abi.encode(_wttpVersion)) != WTTP_VERSION) {
+        return false;
+    }
+    return true;
+}
+
+function calculateEtag(
+    ResourceMetadata memory _metadata, 
+    bytes32[] memory _dataPoints
+) pure returns (bytes32) {
+    return keccak256(abi.encode(_metadata, _dataPoints));
+}
+
+// ============ Gateway Contract ============
+struct GETRequest {
+    HEADRequest head;
+    Range rangeBytes; // start & end (bytes)
+}
+
+struct LOCATERequestExtended {
+    LOCATERequest locate;
+    Range rangeChunks; // start & end (chunk index)
 }
 
 // ============ Constants ============

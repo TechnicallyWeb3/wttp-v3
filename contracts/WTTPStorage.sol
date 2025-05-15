@@ -12,10 +12,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
     uint16 constant MAX_METHODS = 512;
     HeaderInfo zeroHeader;
-    bytes32 immutable ZERO_HEADER_HASH = getHeaderAddress(zeroHeader);
-
     ResourceMetadata zeroMetadata;
-    bytes32 immutable ZERO_METADATA_HASH = keccak256(abi.encode(zeroMetadata));
 
     DataPointRegistryV2 public DPR_;
 
@@ -23,8 +20,13 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         return DPR_.DPS_();
     }
 
-    constructor(address _dpr, address _owner) WTTPPermissionsV3(_owner) {
+    constructor(
+        address _dpr, 
+        address _owner, 
+        HeaderInfo memory _defaultHeader
+    ) WTTPPermissionsV3(_owner) {
         DPR_ = DataPointRegistryV2(_dpr);
+        header[bytes32(0)] = _defaultHeader;
     }
 
     mapping(bytes32 header => HeaderInfo) private header;
@@ -38,17 +40,6 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         _;
     }
 
-    function _isResourceAdmin(string memory _path, address _account) internal view returns (bool) {
-        return _isSiteAdmin(_account) || 
-            hasRole(header[metadata[_path].header].resourceAdmin, _account);
-    }
-
-    modifier onlyResourceAdmin(string memory _path) {
-        if (!_isResourceAdmin(_path, msg.sender)) {
-            revert NotResourceAdmin(_path, msg.sender);
-        }
-        _;
-    }
     // Internal CRUD functions
     // Header
     function _createHeader(
@@ -90,6 +81,12 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         return header[_headerAddress];
     }
 
+    function _updateHeader(
+        HeaderInfo memory _header
+    ) internal virtual onlySuperAdmin {
+        header[bytes32(0)] = _header;
+    }
+
     function _deleteHeader(
         bytes32 _headerAddress
     ) internal virtual {
@@ -119,7 +116,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         if (_metadata.location == 0x0000) {
             emit MalformedParameter("location", abi.encode(_metadata.location));
         }
-        if (_metadata.header == bytes32(0) || _metadata.header == ZERO_HEADER_HASH) {
+        if (_metadata.header == bytes32(0) || _metadata.header == getHeaderAddress(zeroHeader)) {
             emit MalformedParameter("header", abi.encode(_metadata.header));
         }
 
@@ -131,7 +128,6 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         string memory _path
     ) internal virtual view returns (ResourceMetadata memory _metadata) {
         _metadata = metadata[_path];
-        return _metadata;
     }
 
     function _updateMetadataStats(string memory _path) internal virtual {
@@ -145,7 +141,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
     function _updateMetadata(
         string memory _path, 
         ResourceMetadata memory _metadata
-    ) internal virtual notImmutable(_path) {
+    ) internal virtual {
         // set calculated values
         _updateMetadataStats(_path);
 
@@ -191,7 +187,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
     function _createResource(
         string memory _path,
         DataRegistration memory _dataRegistration
-    ) internal virtual notImmutable(_path) returns (bytes32 _dataPointAddress) {
+    ) internal virtual returns (bytes32 _dataPointAddress) {
 
         if (bytes(_path).length == 0) {
             emit MalformedParameter("path", abi.encode(_path));
@@ -219,7 +215,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         string memory _path,
         bytes32 _dataPointAddress,
         uint256 _chunkIndex
-    ) internal virtual notImmutable(_path) {
+    ) internal virtual {
         if (_chunkIndex > resource[_path].length) {
             emit OutOfBoundsChunk(_path, _chunkIndex);
         } else if (_chunkIndex == resource[_path].length) {
@@ -242,7 +238,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
     function _deleteResource(
         string memory _path
-    ) internal virtual notImmutable(_path) {
+    ) internal virtual {
         delete resource[_path];
         metadata[_path].size = 0;
         _deleteMetadata(_path);
@@ -251,13 +247,12 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
     // Writes a data point to the resource, used by both create and update
     // requires _dataRegistration to be sorted by chunkIndex
-    function _uploadData(
+    function _uploadResource(
         string memory _path,
         DataRegistration[] memory _dataRegistration
     )
         internal virtual
         notImmutable(_path)
-        onlyResourceAdmin(_path)
         returns (bytes32[] memory _dataPointAddresses)
     {
         _dataPointAddresses = new bytes32[](_dataRegistration.length);
