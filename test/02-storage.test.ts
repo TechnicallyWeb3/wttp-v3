@@ -10,8 +10,29 @@ describe("TestStorage", function () {
   let owner: any;
   let siteAdmin: any;
   let publicUser: any;
-  let siteAdminRole: any = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("SITE_ADMIN_ROLE"));
-  let publicRole: any = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("PUBLIC_ROLE"));
+  const siteAdminRole: any = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("SITE_ADMIN_ROLE"));
+  const DEFAULT_HEADER = {
+    methods: 511, // All methods allowed (binary 111111111)
+    cache: {
+      maxAge: 3600,
+      sMaxage: 1800,
+      noStore: false,
+      noCache: false,
+      immutableFlag: false,
+      publicFlag: true,
+      mustRevalidate: false,
+      proxyRevalidate: false,
+      mustUnderstand: false,
+      staleWhileRevalidate: 600,
+      staleIfError: 300
+    },
+    redirect: {
+      code: 0,
+      location: ""
+    },
+    resourceAdmin: hre.ethers.zeroPadBytes("0x", 32)
+  };
+  
 
   // Fixture to deploy the contracts once and reuse them across tests
   async function deployTestStorageFixture() {
@@ -28,7 +49,7 @@ describe("TestStorage", function () {
     
     // Deploy TestStorage
     const TestStorage = await hre.ethers.getContractFactory("TestStorage");
-    testStorage = await TestStorage.deploy(await dpr.getAddress(), owner.address);
+    testStorage = await TestStorage.deploy(await dpr.getAddress(), owner.address, DEFAULT_HEADER);
     
     // Grant site admin role
     await testStorage.grantRole(siteAdminRole, siteAdmin.address);

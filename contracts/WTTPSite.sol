@@ -28,7 +28,11 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         return _compatibleWTTPVersion(_wttpVersion);
     }
 
-    constructor(address _dpr, address _owner) WTTPStorageV3(_dpr, _owner) {}
+    constructor(
+        address _dpr, 
+        address _owner, 
+        HeaderInfo memory _defaultHeader
+    ) WTTPStorageV3(_dpr, _owner, _defaultHeader) {}
     
     function _methodAllowed(string memory _path, Method _method) internal view returns (bool) {
         uint16 methodBit = uint16(1 << uint8(_method)); // Create a bitmask for the method
@@ -47,21 +51,59 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         );
     }
 
-    function OPTIONS(
+    function _OPTIONS(
         RequestLine memory optionsRequest
-    ) public view returns (OPTIONSResponse memory optionsResponse) {
+    ) internal view returns (OPTIONSResponse memory optionsResponse) {
         optionsResponse.responseLine.protocol = optionsRequest.protocol;
-
+        optionsResponse.responseLine.code = 500;
         if (!compatibleWTTPVersion(optionsRequest.protocol)) {
             optionsResponse.responseLine.code = 505;
         } else if (!_methodAllowed(optionsRequest.path, optionsRequest.method)) {
             optionsResponse.responseLine.code = 405;
-        } else {
+        } else if (optionsRequest.method == Method.OPTIONS) {
+            optionsResponse.allow = _readHeader(
+                _readMetadata(optionsRequest.path).header
+            ).methods;
             optionsResponse.responseLine.code = 204;
-            if (optionsRequest.method == Method.OPTIONS) {
-                optionsResponse.allow = _readHeader(
-                    _readMetadata(optionsRequest.path).header
-                ).methods;
+        }
+        
+    }
+
+    function OPTIONS(
+        RequestLine memory optionsRequest
+    ) public view returns (OPTIONSResponse memory optionsResponse) {
+        optionsRequest.method = Method.OPTIONS;
+        optionsResponse = _OPTIONS(optionsRequest);
+    }
+
+    function _HEAD(
+        HEADRequest memory headRequest
+    ) internal view returns (HEADResponse memory headResponse) {
+        headResponse.responseLine = _OPTIONS(headRequest.requestLine).responseLine;
+
+        if (headResponse.responseLine.code == 500) {
+            string memory _path = headRequest.requestLine.path;
+            headResponse.metadata = _readMetadata(_path);
+            headResponse.headerInfo = _readHeader(headResponse.metadata.header);
+            bytes32[] memory _dataPoints = _readResource(_path);
+            headResponse.etag = calculateEtag(headResponse.metadata, _dataPoints);
+        
+            if (headResponse.metadata.size == 0) {
+                headResponse.responseLine.code = 404;
+            } 
+            // 3xx codes
+            else if (
+                headResponse.etag == headRequest.ifNoneMatch || 
+                headRequest.ifModifiedSince > headResponse.metadata.lastModified
+            ) {
+                headResponse.responseLine.code = 304;
+            }
+            else if (headResponse.headerInfo.redirect.code != 0) {
+                headResponse.responseLine.code = headResponse.headerInfo.redirect.code;
+            }
+            // 200 codes should be handled by the parent function
+            else if (headRequest.requestLine.method == Method.HEAD) {
+                headResponse.responseLine.code = 200;
             }
         }
     }
@@ -76,34 +118,17 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         view
         returns (HEADResponse memory head)
     {
-        head.responseLine = OPTIONS(headRequest.requestLine).responseLine;
+        headRequest.requestLine.method = Method.HEAD;
+        return _HEAD(headRequest);
+    }
 
-        // 500 codes
-        if (head.responseLine.code == 204) {
-            string memory _path = headRequest.requestLine.path;
-            head.metadata = _readMetadata(_path);
-            head.headerInfo = _readHeader(head.metadata.header);
-            bytes32[] memory _dataPoints = _readResource(_path);
-            head.etag = calculateEtag(head.metadata, _dataPoints);
-            head.responseLine.code = 500;
-        
-            if (head.metadata.size == 0) {
-                head.responseLine.code = 404;
-            } 
-            // 300 codes
-            else if (
-                head.etag == headRequest.ifNoneMatch || 
-                headRequest.ifModifiedSince > head.metadata.lastModified
-            ) {
-                head.responseLine.code = 304;
-            }
-            else if (head.headerInfo.redirect.code != 0) {
-                head.responseLine.code = head.headerInfo.redirect.code;
-            }
-            // 200 codes should be handled by the parent function
-            else if (headRequest.requestLine.method == Method.HEAD) {
-                head.responseLine.code = 200;
-            }
+    function _LOCATE(
+        HEADRequest memory locateRequest
+    ) internal view returns (LOCATEResponse memory locateResponse) {
+        locateResponse.head = _HEAD(locateRequest);
+        if (locateResponse.head.responseLine.code == 500) {
+            locateResponse.dataPoints = _readResource(locateRequest.requestLine.path);
+            locateResponse.head.responseLine.code = 204;
         }
     }
 
@@ -119,14 +144,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         returns (LOCATEResponse memory locateResponse)
     {
         locateRequest.requestLine.method = Method.LOCATE;
-        locateResponse.head = HEAD(locateRequest);
-        if (
-            locateResponse.head.responseLine.code == 500 || 
-            locateResponse.head.responseLine.code < 400
-        ) {
-            locateResponse.dataPoints = _readResource(locateRequest.requestLine.path);
-            locateResponse.head.responseLine.code = 204;
-        }
+        return _LOCATE(locateRequest);
     }
 
     // DO NOT DELETE THIS CODE!
@@ -187,16 +205,14 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     /// @return defineResponse Response containing updated header information
     function DEFINE(
         DEFINERequest memory defineRequest
-    ) public onlyResourceAdmin(defineRequest.head.requestLine.path) 
+    ) external onlyResourceAdmin(defineRequest.head.requestLine.path) 
     returns (DEFINEResponse memory defineResponse) {
-        defineResponse.headerAddress = _createHeader(defineRequest.data);
         defineRequest.head.requestLine.method = Method.DEFINE;
-        defineResponse.head = HEAD(defineRequest.head);
+        defineResponse.head = _HEAD(defineRequest.head);
         if (
-            defineResponse.head.responseLine.code == 500 ||
-            defineResponse.head.responseLine.code == 404 ||
-            defineResponse.head.responseLine.code < 400
+            defineResponse.head.responseLine.code == 500
         ) {
+            defineResponse.headerAddress = _createHeader(defineRequest.data);
             defineResponse.head.responseLine.code = 201;
         }
 
@@ -210,13 +226,12 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     function DELETE(
         HEADRequest memory deleteRequest
     ) public onlyResourceAdmin(deleteRequest.requestLine.path) returns (HEADResponse memory deleteResponse) {
-        _deleteResource(deleteRequest.requestLine.path);
         deleteRequest.requestLine.method = Method.DELETE;
-        deleteResponse = HEAD(deleteRequest);
+        deleteResponse = _HEAD(deleteRequest);
         if (
-            deleteResponse.responseLine.code == 500 ||
-            deleteResponse.responseLine.code < 400
+            deleteResponse.responseLine.code == 500
         ) {
+            _deleteResource(deleteRequest.requestLine.path);
             deleteResponse.responseLine.code = 204;
         }
 
@@ -230,14 +245,12 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     function PUT(
         PUTRequest memory putRequest
     ) public payable onlyResourceAdmin(putRequest.head.requestLine.path) returns (LOCATEResponse memory putResponse) {
-
-        _uploadResource(putRequest.head.requestLine.path, putRequest.data);
         putRequest.head.requestLine.method = Method.PUT;
-        putResponse.head = HEAD(putRequest.head);
+        putResponse.head = _HEAD(putRequest.head);
         if (
-            putResponse.head.responseLine.code == 500 ||
-            putResponse.head.responseLine.code < 400
+            putResponse.head.responseLine.code == 500
         ) {
+            _uploadResource(putRequest.head.requestLine.path, putRequest.data);
             putResponse.head.responseLine.code = 201;
         }
         emit PUTSuccess(msg.sender, putResponse);
@@ -250,13 +263,12 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     function PATCH(
         PATCHRequest memory patchRequest
     ) public payable onlyResourceAdmin(patchRequest.head.requestLine.path) returns (LOCATEResponse memory patchResponse) {
-        _uploadResource(patchRequest.head.requestLine.path, patchRequest.data);
         patchRequest.head.requestLine.method = Method.PATCH;
-        patchResponse.head = HEAD(patchRequest.head);
+        patchResponse.head = _HEAD(patchRequest.head);
         if (
-            patchResponse.head.responseLine.code == 500 ||
-            patchResponse.head.responseLine.code < 400
+            patchResponse.head.responseLine.code == 500
         ) {
+            _uploadResource(patchRequest.head.requestLine.path, patchRequest.data);
             patchResponse.head.responseLine.code = 204;
         }
 

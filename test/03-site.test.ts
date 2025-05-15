@@ -11,7 +11,29 @@ describe("WTTPSite", function () {
   let siteAdmin: any;
   let resourceAdmin: any;
   let publicUser: any;
-  let siteAdminRole: any = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("SITE_ADMIN_ROLE"));
+  
+  const siteAdminRole: any = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("SITE_ADMIN_ROLE"));
+  const DEFAULT_HEADER = {
+    methods: 511, // Should be GET, HEAD, OPTIONS, PUT, PATCH, DELETE and DEFINE
+    cache: {
+      maxAge: 3600,
+      sMaxage: 1800,
+      noStore: false,
+      noCache: false,
+      immutableFlag: false,
+      publicFlag: true,
+      mustRevalidate: false,
+      proxyRevalidate: false,
+      mustUnderstand: false,
+      staleWhileRevalidate: 600,
+      staleIfError: 300
+    },
+    redirect: {
+      code: 0,
+      location: ""
+    },
+    resourceAdmin: hre.ethers.zeroPadBytes("0x", 32) // siteAdmin
+  };
   
   // Fixture to deploy the contracts once and reuse them across tests
   async function deployWTTPFixture() {
@@ -30,7 +52,7 @@ describe("WTTPSite", function () {
     // You'll need to have or create a concrete implementation of WTTPSiteV3 for testing
     // For example, you might have a TestSite contract similar to TestPermissions and TestStorage
     const TestSite = await hre.ethers.getContractFactory("TestSite");
-    wttpSite = await TestSite.deploy(await dpr.getAddress(), owner.address);
+    wttpSite = await TestSite.deploy(await dpr.getAddress(), owner.address, DEFAULT_HEADER);
     
     // Grant site admin role
     await wttpSite.grantRole(siteAdminRole, siteAdmin.address);
@@ -44,7 +66,7 @@ describe("WTTPSite", function () {
   }
 
   // Helper function to create header for tests
-  async function createDefaultHeader(withResourceAdmin = false, adminRole?: string) {
+  async function createCustomHeader(withResourceAdmin = false, adminRole?: string) {
     const headerInfo = {
       methods: 511, // All methods allowed (binary 111111111)
       cache: {
@@ -91,7 +113,7 @@ describe("WTTPSite", function () {
       const optionsResponse = await wttpSite.connect(owner).OPTIONS(optionsRequest);
       // console.log(optionsResponse);
       expect(optionsResponse.responseLine.code).to.equal(204);
-      expect(optionsResponse.allow).to.equal(0);
+      expect(optionsResponse.allow).to.equal(DEFAULT_HEADER.methods);
     });
     it("Should correctly check WTTP version compatibility using OPTIONS and ResourceAdmin", async function () {
       const { wttpSite, resourceAdmin } = await loadFixture(deployWTTPFixture);
@@ -104,7 +126,8 @@ describe("WTTPSite", function () {
       const optionsResponse = await wttpSite.connect(resourceAdmin).OPTIONS(optionsRequest);
       // console.log(optionsResponse);
       expect(optionsResponse.responseLine.code).to.equal(204);
-      expect(optionsResponse.allow).to.equal(0);
+      expect(optionsResponse.allow).to.equal(DEFAULT_HEADER.methods);
+    });
   });
 
   describe("HEAD Requests", function () {
@@ -132,7 +155,7 @@ describe("WTTPSite", function () {
     it("Should allow site admin to define resource headers", async function () {
       const { wttpSite, siteAdmin, resourceAdminRole } = await loadFixture(deployWTTPFixture);
       
-      const headerInfo = await createDefaultHeader(true, resourceAdminRole);
+      const headerInfo = await createCustomHeader(true, resourceAdminRole);
       
       const defineRequest = {
         data: headerInfo,
@@ -181,7 +204,7 @@ describe("WTTPSite", function () {
       
       const headResponse = await wttpSite.HEAD(headRequest);
       // console.log(headResponse);
-      console.log(resourceAdminRole);
+      // console.log(resourceAdminRole);
 
       // Resource exists with headers but no content yet
       expect(headResponse.responseLine.code).to.equal(404);
@@ -228,7 +251,7 @@ describe("WTTPSite", function () {
     it("Should prevent non-admins from defining resource headers", async function () {
       const { wttpSite, publicUser } = await loadFixture(deployWTTPFixture);
       
-      const headerInfo = await createDefaultHeader();
+      const headerInfo = await createCustomHeader();
       
       const defineRequest = {
         data: headerInfo,
@@ -255,7 +278,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin, resourceAdminRole } = await loadFixture(deployWTTPFixture);
       
       // First define headers
-      const headerInfo = await createDefaultHeader(true, resourceAdminRole);
+      const headerInfo = await createCustomHeader(true, resourceAdminRole);
       
       const defineRequest = {
         data: headerInfo,
@@ -328,7 +351,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin, publicUser, resourceAdmin, resourceAdminRole } = await loadFixture(deployWTTPFixture);
       
       // Define headers with specific resource admin
-      const headerInfo = await createDefaultHeader(true, resourceAdminRole);
+      const headerInfo = await createCustomHeader(true, resourceAdminRole);
       
       const defineRequest = {
         data: headerInfo,
@@ -416,7 +439,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin } = await loadFixture(deployWTTPFixture);
       
       // First create a resource
-      const headerInfo = await createDefaultHeader();
+      const headerInfo = await createCustomHeader();
       
       const defineRequest = {
         data: headerInfo,
@@ -515,7 +538,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin } = await loadFixture(deployWTTPFixture);
       
       // First create a resource
-      const headerInfo = await createDefaultHeader();
+      const headerInfo = await createCustomHeader();
       
       const defineRequest = {
         data: headerInfo,
@@ -604,7 +627,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin, publicUser } = await loadFixture(deployWTTPFixture);
       
       // First create a resource
-      const headerInfo = await createDefaultHeader();
+      const headerInfo = await createCustomHeader();
       
       const defineRequest = {
         data: headerInfo,
@@ -672,7 +695,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin } = await loadFixture(deployWTTPFixture);
       
       // First create a resource
-      const headerInfo = await createDefaultHeader();
+      const headerInfo = await createCustomHeader();
       
       const defineRequest = {
         data: headerInfo,
@@ -743,7 +766,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin } = await loadFixture(deployWTTPFixture);
       
       // Create and populate a resource
-      const headerInfo = await createDefaultHeader();
+      const headerInfo = await createCustomHeader();
       
       const defineRequest = {
         data: headerInfo,

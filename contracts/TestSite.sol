@@ -10,7 +10,7 @@ contract TestSite is WTTPSiteV3 {
     // Generic event for tracking operation outcomes
     event Success(string method, string path);
     
-    constructor(address _dpr, address _owner) WTTPSiteV3(_dpr, _owner) {}
+    constructor(address _dpr, address _owner, HeaderInfo memory _defaultHeader) WTTPSiteV3(_dpr, _owner, _defaultHeader) {}
 
     /// @notice Checks if an account is a resource admin for a specific path
     /// @param _path The resource path
