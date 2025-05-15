@@ -30,7 +30,6 @@ describe("TestPermissions", function () {
       // Get the roles
       superAdminRole = await testPermissions.getSuperAdminRole();
       siteAdminRole = await testPermissions.getSiteAdminRole();
-      publicRole = await testPermissions.getPublicRole();
       
       // Test that they're different from each other
       expect(superAdminRole).to.not.equal(siteAdminRole);
@@ -319,10 +318,6 @@ describe("TestPermissions", function () {
     
     it("Should not allow creating invalid roles (system roles)", async function () {
       const { testPermissions, owner } = await loadFixture(deployTestPermissionsFixture);
-      
-      // Try to create PUBLIC_ROLE - should fail
-      await expect(testPermissions.connect(owner).createResourceRole(publicRole))
-        .to.be.revertedWithCustomError(testPermissions, "InvalidRole");
         
       // Try to create SITE_ADMIN_ROLE - should fail
       await expect(testPermissions.connect(owner).createResourceRole(siteAdminRole))
@@ -405,12 +400,7 @@ describe("TestPermissions", function () {
       await expect(testPermissions.connect(owner).grantRole(siteAdminRole, siteAdmin.address))
         .to.emit(testPermissions, "AdminRoleGranted")
         .withArgs(siteAdmin.address);
-      
-      // Blacklist a user - should emit AccountBlacklisted
-      await expect(testPermissions.connect(owner).grantRole(publicRole, publicUser.address))
-        .to.emit(testPermissions, "AccountBlacklisted")
-        .withArgs(publicUser.address);
-      
+
       // Create and grant a resource role - should emit ResourceRoleGranted
       const resourceRole = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("TEST_RESOURCE_ROLE"));
       await testPermissions.connect(owner).createResourceRole(resourceRole);
@@ -425,7 +415,6 @@ describe("TestPermissions", function () {
       
       // Setup roles first
       await testPermissions.connect(owner).grantRole(siteAdminRole, siteAdmin.address);
-      await testPermissions.connect(owner).grantRole(publicRole, publicUser.address);
       
       const resourceRole = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("TEST_RESOURCE_ROLE"));
       await testPermissions.connect(owner).createResourceRole(resourceRole);
@@ -435,11 +424,6 @@ describe("TestPermissions", function () {
       await expect(testPermissions.connect(owner).revokeRole(siteAdminRole, siteAdmin.address))
         .to.emit(testPermissions, "AdminRoleRevoked")
         .withArgs(siteAdmin.address);
-      
-      // Whitelist a user - should emit AccountWhitelisted
-      await expect(testPermissions.connect(owner).revokeRole(publicRole, publicUser.address))
-        .to.emit(testPermissions, "AccountWhitelisted")
-        .withArgs(publicUser.address);
       
       // Revoke a resource role - should emit ResourceRoleRevoked
       await expect(testPermissions.connect(owner).revokeRole(resourceRole, publicUser.address))
@@ -466,13 +450,10 @@ describe("TestPermissions", function () {
       // This should revert for predefined roles
       const superAdminRole = await testPermissions.getSuperAdminRole();
       const siteAdminRole = await testPermissions.getSiteAdminRole();
-      const publicRole = await testPermissions.getPublicRole();
       
       await expect(testPermissions.connect(owner).testValidRole(superAdminRole))
         .to.be.reverted;
       await expect(testPermissions.connect(owner).testValidRole(siteAdminRole))
-        .to.be.reverted;
-      await expect(testPermissions.connect(owner).testValidRole(publicRole))
         .to.be.reverted;
     });
   });

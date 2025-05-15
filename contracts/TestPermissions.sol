@@ -20,10 +20,6 @@ contract TestPermissions is WTTPPermissionsV3 {
         return SITE_ADMIN_ROLE;
     }
 
-    function getPublicRole() public pure returns (bytes32) {
-        return PUBLIC_ROLE;
-    }
-
     function testValidRole(bytes32 _role) public validRole(_role) returns (bool) {
         emit Success();
         return true;

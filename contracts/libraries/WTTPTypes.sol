@@ -41,12 +41,12 @@ error NotResourceAdmin(string path, address account);
 /// @notice Defines supported HTTP methods
 /// @dev Used for method-based access control
 enum Method {
+    HEAD,
     GET,
     POST,
     PUT,
-    DELETE,
     PATCH,
-    HEAD,
+    DELETE,
     OPTIONS,
     LOCATE,
     DEFINE

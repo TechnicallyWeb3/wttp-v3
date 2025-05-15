@@ -170,7 +170,7 @@ abstract contract WTTPSite is WTTPStorageV3 {
         // 400 codes
         else if (!_methodAllowed(_path, Method.HEAD)) {
             head.responseLine.code = 405;
-        } else if (!_resourceExists(_path)) {
+        } else if (_readMetadata(_path).size == 0) {
             head.responseLine.code = 404;
         } 
         // 300 codes
@@ -247,6 +247,7 @@ abstract contract WTTPSite is WTTPStorageV3 {
                 _dataPoints[i - _start] = locateResponse.dataPoints[i];
             }
             locateResponse.dataPoints = _dataPoints;
+            locateResponse.head.etag = calculateEtag(locateResponse.head.metadata, _dataPoints);
         }
     }
 
@@ -287,45 +288,32 @@ abstract contract WTTPSite is WTTPStorageV3 {
 
     /// @notice Handles PUT requests to create new resources
     /// @dev Requires payment for storage costs
-    /// @param _requestLine Request information
-    /// @param _mimeType Resource MIME type
-    /// @param _charset Character encoding
-    /// @param _location Storage location type
-    /// @param _publisher Content publisher address
-    /// @param _data Resource content
+    /// @param putRequest Request information
     /// @return putResponse Response containing created resource information
     function PUT(
-        RequestLine memory _requestLine,
-        bytes2 _mimeType,
-        bytes2 _charset,
-        bytes2 _location,
-        address _publisher,
-        bytes memory _data
+        PUTRequest memory putRequest
     ) public payable returns (PUTResponse memory putResponse) {
-        string memory _path = _requestLine.path;
+        string memory _path = putRequest.head.requestLine.path;
         if (_methodAllowed(_path, Method.PUT)) {
-            putResponse.dataPointAddress =
+            putResponse.dataPointAddresses = [
                 _createResource(
                     _path,
-                    _mimeType,
-                    _charset,
-                    _location,
-                    _publisher,
-                    _data
-                );
-            putResponse.head = HEAD(_requestLine);
+                    putRequest.data
+                )
+            ];
+            putResponse.head = HEAD(putRequest.head);
             putResponse.head.responseLine = ResponseLine({
-                protocol: _requestLine.protocol,
+                protocol: putRequest.head.requestLine.protocol,
                 code: 201
             });
         } else {
             putResponse.head.responseLine = ResponseLine({
-                protocol: _requestLine.protocol,
-                code: 405
+                protocol: putRequest.head.requestLine.protocol,
+                code: 405  
             });
         }
 
-        emit PUTSuccess(msg.sender, _requestLine, putResponse);
+        emit PUTSuccess(msg.sender, putRequest.head.requestLine, putResponse);
     }
 
     /// @notice Handles PATCH requests to update existing resources
