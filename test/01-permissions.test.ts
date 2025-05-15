@@ -73,14 +73,14 @@ describe("TestPermissions", function () {
       const { testPermissions, owner, blacklistedUser } = await loadFixture(deployTestPermissionsFixture);
       
       const isPublic = await testPermissions.isPublic(blacklistedUser.address);
-      console.log("isPublic", isPublic);
+    //   console.log("isPublic", isPublic);
       expect(isPublic).to.be.true;
 
       const tx = testPermissions.connect(owner).blacklistPublicRole(blacklistedUser.address);
       await expect(tx).to.emit(testPermissions, "AccountBlacklisted").withArgs(blacklistedUser.address);
       await (await tx).wait();
       const isPublicAfter = await testPermissions.isPublic(blacklistedUser.address);
-      console.log("isPublicAfter", isPublicAfter);
+    //   console.log("isPublicAfter", isPublicAfter);
       expect(isPublicAfter).to.be.false;
       
       // After granting PUBLIC_ROLE, user should be blacklisted (not public)

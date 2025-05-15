@@ -5,128 +5,31 @@ import "./WTTPPermissions.sol";
 import "./bfs/DataPointRegistry.sol";
 import "./libraries/WTTPTypes.sol";
 
-// HeaderInfo constant defaultFileHeader = HeaderInfo({
-//     cache: defaultCacheControl,
-//     redirect: Redirect(0, ""),
-//     allowedMethods: methodsToMask([
-//         Method.GET,
-//         Method.PUT,
-//         Method.DELETE,
-//         Method.PATCH,
-//         Method.HEAD,
-//         Method.OPTIONS,
-//         Method.LOCATE,
-//         Method.DEFINE
-//     ]),
-//     resourceAdmin: bytes32(0)
-// });
-
-// HeaderInfo constant defaultDirectoryHeader = HeaderInfo({
-//     cache: defaultCacheControl,
-//     redirect: Redirect(300, "./index.html"), // leading ./ indicates a relative path
-//     allowedMethods: methodsToMask([
-//         Method.GET,
-//         Method.PUT,
-//         Method.DELETE,
-//         Method.HEAD,
-//         Method.OPTIONS,
-//         Method.DEFINE
-//     ]),
-//     resourceAdmin: bytes32(0)
-// });
-
-// ResourceMetadata constant defaultFileMetadata = ResourceMetadata({
-//     mimeType: 0x7570, // t/p (text/plain)
-//     charset: 0x7508, // u/8 (utf-8)
-//     encoding: 0x6964, // id (identity)
-//     location: 0x6463, // d/c (datapoint/chunk)
-//     size: 0,  // calculated
-//     version: 0, // calculated
-//     lastModified: 0, // calculated
-//     header: getHeaderAddress(defaultFileHeader)
-// });
-
-// ResourceMetadata constant defaultDirectoryMetadata = ResourceMetadata({
-//     mimeType: 0x756f, // t/o (text/json)
-//     charset: 0x7508, // u/8 (utf-8)
-//     encoding: 0x6964, // id (identity/uncompressed)
-//     location: 0x6463, // d/c (datapoint/chunk)
-//     size: 0, // calculated
-//     version: 0,
-//     lastModified: 0,
-//     header: getHeaderAddress(defaultDirectoryHeader)
-// });
-
 /// @title WTTP Storage Contract
 /// @notice Manages web resource storage and access control
 /// @dev Core storage functionality for the WTTP protocol
 abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
-    CacheControl zeroCacheControl = CacheControl({
-        maxAge: 0,
-        sMaxage: 0,
-        noStore: false,
-        noCache: false,
-        immutableFlag: false,
-        publicFlag: false,
-        mustRevalidate: false,
-        proxyRevalidate: false,
-        mustUnderstand: false,
-        staleWhileRevalidate: 0,
-        staleIfError: 0
-    });
-
-    HeaderInfo zeroHeader = HeaderInfo({
-        cache: zeroCacheControl,
-        redirect: Redirect(0, ""),
-        methods: 0,
-        resourceAdmin: bytes32(0)
-    });
-
-    Method[] allMethods = new Method[](9);
-    
-
     uint16 constant MAX_METHODS = 512;
-    
-
+    HeaderInfo zeroHeader;
     bytes32 immutable ZERO_HEADER_HASH = getHeaderAddress(zeroHeader);
 
-    ResourceMetadata zeroMetadata = ResourceMetadata({
-        mimeType: 0x0000,
-        charset: 0x0000,
-        encoding: 0x0000,
-        location: 0x0000,
-        size: 0,
-        version: 0,
-        lastModified: 0,
-        header: bytes32(0)
-    });
-
+    ResourceMetadata zeroMetadata;
     bytes32 immutable ZERO_METADATA_HASH = keccak256(abi.encode(zeroMetadata));
 
     DataPointRegistryV2 public DPR_;
+
     function DPS() internal view virtual returns (DataPointStorageV2) {
         return DPR_.DPS_();
     }
 
     constructor(address _dpr, address _owner) WTTPPermissionsV3(_owner) {
         DPR_ = DataPointRegistryV2(_dpr);
-
-        // // * is the default for directories
-        // resourceMetadata["*"] = defaultDirectoryMetadata;
-        // // . is the default for files
-        // resourceMetadata["."] = defaultFileMetadata;
-        // headers[headerPath] = _header;
     }
 
     mapping(bytes32 header => HeaderInfo) private header;
     mapping(string path => ResourceMetadata) private metadata;
     mapping(string path => bytes32[]) private resource;
-
-    function _pathExists(string memory _path) internal view returns (bool) {
-        return resource[_path].length > 0 && 
-            keccak256(abi.encode(metadata[_path])) != keccak256(abi.encode(zeroMetadata));
-    }
 
     modifier notImmutable(string memory _path) {
         if (header[metadata[_path].header].cache.immutableFlag && resource[_path].length > 0) {
@@ -198,9 +101,6 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         string memory _path,
         ResourceMetadata memory _metadata
     ) internal virtual {
-        if (_pathExists(_path)) {
-            emit ResourceExists(_path);
-        }
         if (
             header[_metadata.header].methods == 0 || 
             header[_metadata.header].methods > MAX_METHODS
@@ -291,7 +191,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
     function _createResource(
         string memory _path,
         DataRegistration memory _dataRegistration
-    ) internal virtual notImmutable(_path) {
+    ) internal virtual notImmutable(_path) returns (bytes32 _dataPointAddress) {
 
         if (bytes(_path).length == 0) {
             emit MalformedParameter("path", abi.encode(_path));
@@ -300,28 +200,12 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
             emit MalformedParameter("data", abi.encode(_dataRegistration.data));
         }
 
-        bytes32 _dataPointAddress = DPR_.registerDataPoint{value: msg.value}(
+        _dataPointAddress = DPR_.registerDataPoint{value: msg.value}(
             _dataRegistration.data,
             _dataRegistration.publisher
         );
 
-        if (_dataRegistration.chunkIndex > resource[_path].length) {
-            emit OutOfBoundsChunk(_path, _dataRegistration.chunkIndex);
-        } else if (_dataRegistration.chunkIndex == resource[_path].length) {
-            // add a new chunk
-            resource[_path].push(_dataPointAddress);
-            metadata[_path].size += _dataRegistration.data.length;
-        } else {
-            // update an existing chunk
-            resource[_path][_dataRegistration.chunkIndex] = _dataPointAddress;
-            metadata[_path].size = 
-                metadata[_path].size 
-                - DPS().dataPointSize(resource[_path][_dataRegistration.chunkIndex]) 
-                + DPS().dataPointSize(_dataPointAddress
-            );
-        }
-
-        _updateMetadataStats(_path);
+        _updateResource(_path, _dataPointAddress, _dataRegistration.chunkIndex);
     }
 
     // Returns all the datapoint addresses for a given resource
@@ -374,19 +258,11 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         internal virtual
         notImmutable(_path)
         onlyResourceAdmin(_path)
-        returns (bytes32 _dataPointAddress)
+        returns (bytes32[] memory _dataPointAddresses)
     {
-
+        _dataPointAddresses = new bytes32[](_dataRegistration.length);
         for (uint i = 0; i < _dataRegistration.length; i++) {
-            if (_dataRegistration[i].chunkIndex > resource[_path].length) {
-                emit OutOfBoundsChunk(_path, _dataRegistration[i].chunkIndex);
-            } else {
-                _dataPointAddress = DPR_.registerDataPoint{value: msg.value}(
-                    _dataRegistration[i].data,
-                    _dataRegistration[i].publisher
-                );
-                _updateResource(_path, _dataPointAddress, _dataRegistration[i].chunkIndex);
-            }
+            _dataPointAddresses[i] = _createResource(_path, _dataRegistration[i]);
         }
     }
 }

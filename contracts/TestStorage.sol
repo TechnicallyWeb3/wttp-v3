@@ -71,13 +71,8 @@ contract TestStorage is WTTPStorageV3 {
         emit Success();
     }
     
-    function testUploadData(string memory _path, DataRegistration[] memory _dataRegistration) public payable returns (bytes32) {
+    function testUploadData(string memory _path, DataRegistration[] memory _dataRegistration) public payable returns (bytes32[] memory) {
         return _uploadData(_path, _dataRegistration);
-    }
-    
-    // Helper functions
-    function testPathExists(string memory _path) public view returns (bool) {
-        return _pathExists(_path);
     }
     
     function testIsResourceAdmin(string memory _path, address _account) public view returns (bool) {
