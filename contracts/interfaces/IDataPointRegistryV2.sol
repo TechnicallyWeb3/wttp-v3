@@ -8,6 +8,7 @@ import "./IDataPointStorageV2.sol";
 interface IDataPointRegistryV2 {
     /// @notice Gets the reference to the data point storage contract
     /// @return The data point storage contract
+
     function DPS_() external view returns (IDataPointStorageV2);
     
     /// @notice Writes a new data point and handles royalty logic

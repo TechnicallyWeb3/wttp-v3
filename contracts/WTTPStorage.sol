@@ -10,14 +10,22 @@ import "./interfaces/IDataPointStorageV2.sol";
 /// @dev Core storage functionality for the WTTP protocol
 abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
-    uint16 constant MAX_METHODS = 512;
+    uint16 constant MAX_METHODS = 511;
     HeaderInfo zeroHeader;
     ResourceMetadata zeroMetadata;
 
-    IDataPointRegistryV2 public DPR_;
+    IDataPointRegistryV2 internal DPR_;
 
-    function DPS() internal view virtual returns (IDataPointStorageV2) {
+    function DPS() public view virtual returns (IDataPointStorageV2) {
         return DPR_.DPS_();
+    }
+
+    function DPR() public view virtual returns (IDataPointRegistryV2) {
+        return DPR_;
+    }
+
+    function setDPR(address _dpr) public onlySuperAdmin {
+        DPR_ = IDataPointRegistryV2(_dpr);
     }
 
     constructor(

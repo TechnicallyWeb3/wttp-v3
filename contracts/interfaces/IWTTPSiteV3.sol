@@ -2,10 +2,14 @@
 pragma solidity ^0.8.20;
 
 import "../lib/WTTPTypes.sol";
+import "./IDataPointStorageV2.sol";
+import "./IDataPointRegistryV2.sol";
 
 /// @title Interface for WTTP Site Contract
 /// @notice Defines the external methods available on WTTPSiteV3
 interface IWTTPSiteV3 {
+    function DPS() external view returns (IDataPointStorageV2);
+    function DPR() external view returns (IDataPointRegistryV2);
     /// @notice Handles OPTIONS requests to check available methods
     /// @param optionsRequest Request information
     /// @return optionsResponse Response with allowed methods
