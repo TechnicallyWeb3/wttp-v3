@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "./WTTPPermissions.sol";
-import "./bfs/DataPointRegistry.sol";
-import "./libraries/WTTPTypes.sol";
+import "./interfaces/IDataPointRegistryV2.sol";
+import "./interfaces/IDataPointStorageV2.sol";
 
 /// @title WTTP Storage Contract
 /// @notice Manages web resource storage and access control
@@ -14,9 +14,9 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
     HeaderInfo zeroHeader;
     ResourceMetadata zeroMetadata;
 
-    DataPointRegistryV2 public DPR_;
+    IDataPointRegistryV2 public DPR_;
 
-    function DPS() internal view virtual returns (DataPointStorageV2) {
+    function DPS() internal view virtual returns (IDataPointStorageV2) {
         return DPR_.DPS_();
     }
 
@@ -25,7 +25,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         address _owner, 
         HeaderInfo memory _defaultHeader
     ) WTTPPermissionsV3(_owner) {
-        DPR_ = DataPointRegistryV2(_dpr);
+        DPR_ = IDataPointRegistryV2(_dpr);
         header[bytes32(0)] = _defaultHeader;
     }
 
@@ -154,12 +154,6 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
         HeaderInfo memory _header = header[_metadata.header];
 
-
-        if (header[_metadata.header].methods & uint16(Method.GET) != 0) {
-            // If GET is enabled, enable LOCATE as well
-            _header.methods = _header.methods | uint16(Method.LOCATE);
-        }
-
         // extra instructions for immutable resources
         if (header[_metadata.header].cache.immutableFlag && resource[_path].length > 0) {
             // Create a mask that will turn off PUT, PATCH, and DELETE methods
@@ -202,8 +196,11 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         if (_dataRegistration.data.length == 0) {
             emit MalformedParameter("data", abi.encode(_dataRegistration.data));
         }
+        _dataPointAddress = calculateDataPointAddress(_dataRegistration.data, DPS().VERSION());
 
-        _dataPointAddress = DPR_.registerDataPoint{value: msg.value}(
+        uint256 _royalty = DPR_.getDataPointRoyalty(_dataPointAddress);
+
+        DPR_.registerDataPoint{value: _royalty}(
             _dataRegistration.data,
             _dataRegistration.publisher
         );

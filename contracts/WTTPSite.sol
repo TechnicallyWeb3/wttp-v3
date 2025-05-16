@@ -10,8 +10,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
 
         
     function _isResourceAdmin(string memory _path, address _account) internal view returns (bool) {
+        bytes32 _resourceAdmin = _readHeader(_readMetadata(_path).header).resourceAdmin;
         return _isSiteAdmin(_account) || 
-            hasRole(_readHeader(_readMetadata(_path).header).resourceAdmin, _account);
+            hasRole(_resourceAdmin, _account) || 
+            _resourceAdmin == bytes32(type(uint256).max); // indicates public access
     }
 
     modifier onlyResourceAdmin(string memory _path) {
@@ -71,7 +73,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
 
     function OPTIONS(
         RequestLine memory optionsRequest
-    ) public view returns (OPTIONSResponse memory optionsResponse) {
+    ) external view returns (OPTIONSResponse memory optionsResponse) {
         optionsRequest.method = Method.OPTIONS;
         optionsResponse = _OPTIONS(optionsRequest);
     }
@@ -113,9 +115,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     function HEAD(
         HEADRequest memory headRequest
     )
-        public
-        view
-        returns (HEADResponse memory head)
+        external view returns (HEADResponse memory head)
     {
         headRequest.requestLine.method = Method.HEAD;
         return _HEAD(headRequest);
@@ -138,12 +138,17 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     function LOCATE(
         HEADRequest memory locateRequest
     )
-        public
-        view
-        returns (LOCATEResponse memory locateResponse)
+        external view returns (LOCATEResponse memory locateResponse)
     {
         locateRequest.requestLine.method = Method.LOCATE;
         return _LOCATE(locateRequest);
+    }
+
+    function GET(
+        HEADRequest memory getRequest
+    ) external view returns (LOCATEResponse memory locateResponse) {
+        getRequest.requestLine.method = Method.GET;
+        return _LOCATE(getRequest);
     }
 
     // DO NOT DELETE THIS CODE!
@@ -277,6 +282,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
             }));
             _uploadResource(putRequest.head.requestLine.path, putRequest.data);
             putResponse.head.responseLine.code = 201;
+        }
+        // transfer remaining balance (not used for royalties) to msg.sender
+        if (msg.value > 0) {
+            payable(msg.sender).transfer(msg.value);
         }
         emit PUTSuccess(msg.sender, putResponse);
     }

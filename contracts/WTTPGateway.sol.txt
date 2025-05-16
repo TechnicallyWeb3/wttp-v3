@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity ^0.8.20;
+
+import "./lib/WTTPTypes.sol";
+import "./interfaces/IWTTPSiteV3.sol";
+import "./interfaces/IDataPointStorageV2.sol";
+
+contract WTTPGateway {
+    
+    function OPTIONS(
+        address _site, 
+        RequestLine memory _optionsRequest
+    ) public view returns (OPTIONSResponse memory _optionsResponse) {
+        return IWTTPSiteV3(_site).OPTIONS(_optionsRequest);
+    }
+
+    function GET(
+        address _site, 
+        GETRequest memory _getRequest
+    ) public view returns (GETResponse memory _getResponse) {
+        // Get the full response from the site
+        LOCATEResponse memory locateResponse = IWTTPSiteV3(_site).LOCATE(_getRequest.head);
+        
+        // Process the chunks if needed 
+        if (
+            !(_getRequest.rangeBytes.start == 0 && (
+                _getRequest.rangeBytes.end == 0 || 
+                _getRequest.rangeBytes.end == int256(locateResponse.dataPoints.length)
+            ))
+        ) {
+            locateResponse = _processRange(_site, locateResponse, _getRequest.rangeBytes);
+        }
+        
+        // Convert LOCATEResponse to GETResponse
+        _getResponse.head = locateResponse.head;
+        // _getResponse.dataPoints = locateResponse.dataPoints;
+        
+        return _getResponse;
+    }
+
+    function HEAD(
+        address _site, 
+        HEADRequest memory _headRequest
+    ) public view returns (HEADResponse memory _headResponse) {
+        return IWTTPSiteV3(_site).HEAD(_headRequest);
+    }
+
+    function LOCATE(
+        address _site, 
+        LOCATERequest memory _locateRequest
+    ) public view returns (LOCATEResponse memory _locateResponse) {
+        // First get the full response from the site
+        _locateResponse = IWTTPSiteV3(_site).LOCATE(_locateRequest.head);
+        
+        // Process chunks if needed
+        if (
+            !(_locateRequest.rangeChunks.start == 0 && (
+                _locateRequest.rangeChunks.end == 0 || 
+                _locateRequest.rangeChunks.end == int256(_locateResponse.dataPoints.length)
+            ))
+        ) {
+            _locateResponse = _processRange(
+                _locateResponse.dataPoints, 
+                _locateRequest.rangeChunks, 
+                RangeType.DATA_POINTS
+            );
+        }
+        
+        return _locateResponse;
+    }
+    
+    enum RangeType {
+        BYTES,
+        DATA_POINTS
+    }
+
+    struct RangedResponse {
+        bytes32[] dataPoints;
+        bytes data;
+        RangeType rangeType;
+        bool outOfBounds;
+    }
+
+    /// @notice Processes chunk range requests
+    /// @param dataPoints The data points to process
+    /// @param range The requested range
+    /// @param rangeType The type of range
+    /// @return rangeResponse The modified response with selected chunks
+    function _processRange(
+        bytes32[] memory dataPoints,
+        Range memory range,
+        RangeType rangeType
+    ) internal view returns (RangedResponse memory rangeResponse) {
+
+        if (rangeType == RangeType.DATA_POINTS) {
+            uint256 _start;
+            uint256 _end = dataPoints.length;
+            rangeResponse.rangeType = rangeType;
+
+            // Handle negative end index (count from end)
+            if (
+                range.end < 0 && // is negative
+                _end >= uint256(-range.end) // is in range
+            ) {
+                _end = uint256(int256(dataPoints.length) + range.end); 
+                // add negative to end
+            } else {
+                _end = uint256(range.end); // negatives will cast large
+            }
+
+            // Check if end is out of bounds
+            if (dataPoints.length < _end) {
+                rangeResponse.rangeType = rangeType;
+                return rangeResponse;
+            }
+
+            // Handle negative start index (count from end)
+            if (
+                range.start < 0 && // is negative
+                _end >= uint256(-range.start) // is in range
+            ) {
+                _start = uint256(
+                    int256(dataPoints.length) + range.start
+                ); 
+                // add negative to end
+            } else {
+                _start = uint256(range.start); // negatives will cast large
+            }
+            
+            // Check if start is valid
+            if (_start > _end) {
+                rangeResponse.outOfBounds = true;
+                return rangeResponse;
+            }
+
+            // Create array with only the requested chunks
+            bytes32[] memory _dataPoints = new bytes32[](_end - _start);
+            for (uint256 i = _start; i < _end; i++) {
+                _dataPoints[i - _start] = dataPoints[i];
+            }
+            rangeResponse.dataPoints = _dataPoints;
+        }
+    }
+    
+}

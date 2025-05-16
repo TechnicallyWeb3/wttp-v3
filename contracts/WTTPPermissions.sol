@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "./libraries/WTTPTypes.sol";
+import "./lib/WTTPTypes.sol";
 
 /// @title WTTP Permissions Contract
 /// @notice Manages role-based access control for the WTTP protocol
@@ -10,7 +10,7 @@ import "./libraries/WTTPTypes.sol";
 abstract contract WTTPPermissionsV3 is AccessControl {
 
     /// @notice Role identifier for site administrators
-    bytes32 internal constant SITE_ADMIN_ROLE = keccak256("SITE_ADMIN_ROLE");
+    bytes32 internal SITE_ADMIN_ROLE;
     // /// @notice Role identifier for the public
     // /// @dev This role works in reverse, a user can be assigned as a blacklisted role
     // /// @dev This means if you have the public role, hasRole(PUBLIC_ROLE, account) will return false
@@ -19,6 +19,7 @@ abstract contract WTTPPermissionsV3 is AccessControl {
     /// @notice Sets up initial roles and permissions
     /// @param _owner Address of the contract owner
     constructor(address _owner) {
+        SITE_ADMIN_ROLE = keccak256("SITE_ADMIN_ROLE");
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
         _setRoleAdmin(SITE_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         // _setRoleAdmin(PUBLIC_ROLE, SITE_ADMIN_ROLE);
@@ -80,6 +81,8 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         super.grantRole(role, account);
         if(role == SITE_ADMIN_ROLE) {
             emit AdminRoleGranted(account);
+        // } else if(role == PUBLIC_ROLE) {
+        //     emit AccountBlacklisted(account);
         } else {
             emit ResourceRoleGranted(role, account);
         }
@@ -89,9 +92,25 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         super.revokeRole(role, account);
         if(role == SITE_ADMIN_ROLE) {
             emit AdminRoleRevoked(account);
+        // } else if(role == PUBLIC_ROLE) {
+        //     emit AccountWhitelisted(account);
         } else {
             emit ResourceRoleRevoked(role, account);
         }
+    }
+
+        /// @notice Transfer ownership to a new address
+    /// @dev Only callable by a super admin
+    /// @param _newOwner Address of the new owner
+    function transferOwnership(address _newOwner) external onlySuperAdmin {
+        // Grant the new owner super admin role
+        _grantRole(DEFAULT_ADMIN_ROLE, _newOwner);
+        emit OwnershipTransferred(msg.sender, _newOwner);
+    }
+
+    function changeSiteAdmin(bytes32 _newSiteAdmin) external onlySuperAdmin {
+        emit SiteAdminChanged(SITE_ADMIN_ROLE, _newSiteAdmin);
+        SITE_ADMIN_ROLE = _newSiteAdmin;
     }
 
 }

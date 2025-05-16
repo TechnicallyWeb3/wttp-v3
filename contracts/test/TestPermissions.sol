@@ -16,7 +16,7 @@ contract TestPermissions is WTTPPermissionsV3 {
         return DEFAULT_ADMIN_ROLE;
     }
 
-    function getSiteAdminRole() public pure returns (bytes32) {
+    function getSiteAdminRole() public view returns (bytes32) {
         return SITE_ADMIN_ROLE;
     }
 

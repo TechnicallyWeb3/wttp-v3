@@ -1,8 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
+// ============ Data Point Registry Helper ============
+/// @notice Calculates a unique address for a data point
+/// @dev Uses keccak256 hash of concatenated version and data
+/// @param _data The data point
+/// @param _version The version of the data point
+/// @return bytes32 The calculated address
+function calculateDataPointAddress(
+    bytes memory _data,
+    uint8 _version
+) pure returns (bytes32) {
+    return keccak256(abi.encodePacked(_data, _version));
+}
+
 // ============ WTTP Permissions Contract ============
 // ============ Events ============
+event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+event SiteAdminChanged(bytes32 oldSiteAdmin, bytes32 newSiteAdmin);
 event AdminRoleGranted(address indexed account);
 event AdminRoleRevoked(address indexed account);
 event ResourceRoleCreated(bytes32 indexed role);
@@ -211,17 +226,6 @@ struct HEADResponse {
     bytes32 etag;
 }
 
-// consider including range and LOCATERequest in gateway contract
-struct Range {
-    int256 start;
-    int256 end;
-}
-
-struct LOCATERequest {
-    HEADRequest head;
-    Range chunks; // start & end by chunk index, not bytes
-}
-
 /// @title LOCATE Response Structure
 /// @notice Extended response for LOCATE requests
 /// @dev Includes storage addresses and data point locations
@@ -281,14 +285,25 @@ function calculateEtag(
 }
 
 // ============ Gateway Contract ============
+struct Range {
+    int256 start;
+    int256 end;
+}
+
+struct LOCATERequest {
+    HEADRequest head;
+    Range rangeChunks; // start & end by chunk index, not bytes
+}
+
 struct GETRequest {
     HEADRequest head;
     Range rangeBytes; // start & end (bytes)
 }
 
-struct LOCATERequestExtended {
-    LOCATERequest locate;
-    Range rangeChunks; // start & end (chunk index)
+struct GETResponse {
+    HEADResponse head;
+    Range bytesRange;
+    bytes data;
 }
 
 // ============ Constants ============
