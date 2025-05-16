@@ -344,7 +344,7 @@ describe("WTTPSite", function () {
       
       const headResponse = await wttpSite.HEAD(headRequest);
       // console.log(headResponse);
-      console.log(resourceAdminRole);
+      // console.log(resourceAdminRole);
 
       // Resource exists with headers but no content yet
       expect(headResponse.responseLine.code).to.equal(404);
@@ -391,12 +391,12 @@ describe("WTTPSite", function () {
       }).filter(Boolean);
 
       const putSuccessEvent = events?.find(event => event?.name === "PUTSuccess");  
-      console.log(putSuccessEvent?.args.putResponse.head.headerInfo);
+      // console.log(putSuccessEvent?.args.putResponse.head.headerInfo);
 
       // Now check the resource with content
       const headResponseWithContent = await wttpSite.HEAD(headRequest);
-      console.log(headResponseWithContent);
-      console.log(headResponseWithContent.metadata);
+      // console.log(headResponseWithContent);
+      // console.log(headResponseWithContent.metadata);
       expect(headResponseWithContent.responseLine.code).to.equal(200);
       expect(headResponseWithContent.headerInfo.methods).to.equal(headerInfo.methods);
       expect(headResponseWithContent.headerInfo.resourceAdmin).to.equal(resourceAdminRole);
