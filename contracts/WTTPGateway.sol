@@ -50,8 +50,21 @@ contract WTTPGatewayV3 {
         } else {
             _getResponse.head = locateResponse.head;
             _getResponse.head.responseLine.code = 200;
+            
             // Get full data
-            // ... existing code ...
+            IDataPointStorageV2 dps = IDataPointStorageV2(IWTTPSiteV3(_site).DPS());
+            uint256 totalSize = locateResponse.head.metadata.size;
+            bytes memory fullData = new bytes(totalSize);
+            uint256 offset;
+            
+            for (uint256 i; i < locateResponse.dataPoints.length; i++) {
+                bytes memory dpData = dps.readDataPoint(locateResponse.dataPoints[i]);
+                for (uint256 j; j < dpData.length; j++) {
+                    fullData[offset++] = dpData[j];
+                }
+            }
+            
+            _getResponse.data = fullData;
         }
         
         return _getResponse;

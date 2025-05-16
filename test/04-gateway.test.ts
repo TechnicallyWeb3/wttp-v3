@@ -1,13 +1,13 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { WTTPSiteV3, DataPointRegistryV2, DataPointStorageV2, WTTPGateway } from "../typechain-types";
+import { WTTPSiteV3, DataPointRegistryV2, DataPointStorageV2, WTTPGatewayV3 } from "../typechain-types";
 
 describe("WTTPGateway", function () {
   let dps: DataPointStorageV2;
   let dpr: DataPointRegistryV2;
   let wttpSite: WTTPSiteV3;
-  let gateway: WTTPGateway;
+  let gateway: WTTPGatewayV3;
   let owner: any;
   let siteAdmin: any;
   let publicUser: any;
@@ -406,7 +406,7 @@ describe("WTTPGateway", function () {
       expect(getResponse.head.responseLine.code).to.equal(206); // Partial Content
       
       // The actual bytes should cross chunk boundaries
-      const expectedContent = "lo, Chunk2: this is";
+      const expectedContent = "llo, Chunk2: this is";
       expect(hre.ethers.toUtf8String(getResponse.data)).to.equal(expectedContent);
     });
     

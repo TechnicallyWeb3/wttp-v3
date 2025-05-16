@@ -27,8 +27,12 @@ abstract contract WTTPPermissionsV3 is AccessControl {
     }
 
     modifier validRole(bytes32 role) {
-        if(role == SITE_ADMIN_ROLE || role == DEFAULT_ADMIN_ROLE) {
-            revert InvalidRole();
+        if(
+            role == SITE_ADMIN_ROLE || 
+            role == DEFAULT_ADMIN_ROLE
+            // || role == PUBLIC_ROLE
+        ) {
+            revert InvalidRole(role);
         }
         _;
     }
@@ -78,6 +82,9 @@ abstract contract WTTPPermissionsV3 is AccessControl {
     }
 
     function grantRole(bytes32 role, address account) public override {
+        if(role == DEFAULT_ADMIN_ROLE) {
+            revert InvalidRole(role);
+        }
         super.grantRole(role, account);
         if(role == SITE_ADMIN_ROLE) {
             emit AdminRoleGranted(account);

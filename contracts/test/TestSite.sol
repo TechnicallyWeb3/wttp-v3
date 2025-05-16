@@ -19,5 +19,13 @@ contract TestSite is WTTPSiteV3 {
     function isResourceAdmin(string memory _path, address _account) public view returns (bool) {
         return _isResourceAdmin(_path, _account);
     }
+
+    function isSuperAdmin(address _account) public view returns (bool) {
+        return _isSuperAdmin(_account);
+    }
+
+    function isSiteAdmin(address _account) public view returns (bool) {
+        return _isSiteAdmin(_account);
+    }
  
 } 

@@ -27,7 +27,7 @@ event AccountBlacklisted(address indexed account);
 event AccountWhitelisted(address indexed account);
 
 // ============ Errors ============
-error InvalidRole();
+error InvalidRole(bytes32 role);
 error NotSuperAdmin(address account);
 error NotSiteAdmin(address account);
 error Blacklisted(address account);

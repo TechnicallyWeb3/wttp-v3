@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./test/TestSite.sol";
+import "./WTTPSiteNFT.sol";
+import "./interfaces/IDataPointRegistryV2.sol";
+import "./lib/WTTPTypes.sol";
+
+/// @title WTTP Site Factory
+/// @notice Lightweight factory for deploying sites and associating them with NFTs
+/// @dev Separates site creation logic from NFT contract to reduce contract size
+contract WTTPSiteFactory is Ownable {
+    // NFT contract
+    WTTPSiteNFT public nftContract;
+    
+    // DPR address for site deployments
+    address public dprAddress;
+    
+    // Default header for new sites
+    HeaderInfo public defaultHeader;
+    
+    // Events
+    event SiteDeployed(uint256 indexed tokenId, address indexed siteAddress, address indexed owner);
+    
+    constructor(address _dprAddress, HeaderInfo memory _defaultHeader) 
+        Ownable(msg.sender) 
+    {
+        dprAddress = _dprAddress;
+        defaultHeader = _defaultHeader;
+    }
+    
+    /// @notice Sets the NFT contract address
+    function setNFTContract(address _nftContract) external onlyOwner {
+        nftContract = WTTPSiteNFT(_nftContract);
+    }
+    
+    /// @notice Updates DPR address for future site deployments
+    function updateDPRAddress(address _dprAddress) external onlyOwner {
+        dprAddress = _dprAddress;
+    }
+    
+    /// @notice Updates default header for future site deployments
+    function updateDefaultHeader(HeaderInfo memory _defaultHeader) external onlyOwner {
+        defaultHeader = _defaultHeader;
+    }
+    
+    /// @notice Deploys a new site and requests the NFT contract to mint a token
+    /// @param to Address receiving the NFT and site ownership
+    /// @param siteMetadataURI URI for the site's metadata
+    /// @return siteAddress The address of the newly deployed site
+    function deployAndMintSite(address to, string calldata siteMetadataURI) external returns (address siteAddress) {
+        // Deploy a new WTTP site with the recipient as the owner
+        TestSite newSite = new TestSite(dprAddress, to, defaultHeader);
+        siteAddress = address(newSite);
+        
+        // Mint NFT to recipient
+        uint256 tokenId = nftContract.mintSiteToken(to, siteAddress, siteMetadataURI);
+        
+        emit SiteDeployed(tokenId, siteAddress, to);
+        return siteAddress;
+    }
+} 
