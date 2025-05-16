@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "./WTTPSite.sol";
+import "../WTTPSite.sol";
 
 /// @title Test implementation of WTTPSite
 /// @notice Used for testing the WTTPSite contract

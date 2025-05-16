@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "./WTTPPermissions.sol";
+import "../WTTPPermissions.sol";
 
 /// @title Test implementation of WTTPPermissions
 /// @notice Used for testing the WTTPPermissions contract
