@@ -116,6 +116,8 @@ struct ResourceMetadata {
     bytes2 charset;
     /// @notice Encoding of the resource
     bytes2 encoding;
+    /// @notice Language of the resource
+    bytes2 language;
     /// @notice Location of the resource
     bytes2 location;
     /// @notice Size of the resource in bytes

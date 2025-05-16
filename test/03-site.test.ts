@@ -70,8 +70,8 @@ describe("WTTPSite", function () {
     const headerInfo = {
       methods: 511, // All methods allowed (binary 111111111)
       cache: {
-        maxAge: 3600,
-        sMaxage: 1800,
+        maxAge: 600,
+        sMaxage: 300,
         noStore: false,
         noCache: false,
         immutableFlag: false,
@@ -79,8 +79,8 @@ describe("WTTPSite", function () {
         mustRevalidate: false,
         proxyRevalidate: false,
         mustUnderstand: false,
-        staleWhileRevalidate: 600,
-        staleIfError: 300
+        staleWhileRevalidate: 180,
+        staleIfError: 60
       },
       redirect: {
         code: 0,
@@ -128,6 +128,145 @@ describe("WTTPSite", function () {
       expect(optionsResponse.responseLine.code).to.equal(204);
       expect(optionsResponse.allow).to.equal(DEFAULT_HEADER.methods);
     });
+    
+    it("Should correctly call read-only methods as a PublicUser", async function () {
+      const { wttpSite, publicUser } = await loadFixture(deployWTTPFixture);
+      // create a test resource
+      const putRequest = {
+        head: {
+          requestLine: {
+            path: "/test-resource",
+            protocol: "WTTP/3.0",
+            method: 3, // PUT
+          },
+          ifNoneMatch: hre.ethers.zeroPadBytes("0x", 32),
+          ifModifiedSince: 0
+        },
+        mimeType: "0x7470",
+        charset: "0x7538",
+        encoding: "0x6964",
+        language: "0x6575",
+        location: "0x6463",
+        data: [
+          {
+            data: hre.ethers.toUtf8Bytes("Test content"),
+            publisher: publicUser.address,
+            chunkIndex: 0
+          }
+        ]
+        
+      };
+
+      const putResponse = await wttpSite.PUT(putRequest, { value: hre.ethers.parseEther("0.0001") });
+      const receipt = await putResponse.wait();
+      // console.log(receipt);
+      
+      const events = receipt?.logs.map(log => {
+        try {
+          const parsed = wttpSite.interface.parseLog({
+            topics: log.topics,
+            data: log.data
+          });
+          return parsed;
+        } catch {
+          return null;
+        }
+      }).filter(event => event !== null);
+
+      const putSuccessEvent = events?.find(event => event.name === "PUTSuccess");
+      // console.log("All events:", events?.map(e => e.name));
+      const responseCode = putSuccessEvent?.args.putResponse.head.responseLine.code;
+      expect(responseCode).to.equal(201);
+      
+      const optionsRequest = {
+        path: "/test-resource",
+        protocol: "WTTP/3.0",
+        method: 1, // OPTIONS
+      };
+
+      const optionsResponse = await wttpSite.connect(publicUser).OPTIONS(optionsRequest);
+      expect(optionsResponse.responseLine.code).to.equal(204);
+      expect(optionsResponse.allow).to.equal(DEFAULT_HEADER.methods);
+      
+      const headRequest = {
+        requestLine: {
+          path: "/test-resource",
+          protocol: "WTTP/3.0",
+          method: 0, // HEAD
+        },
+        ifNoneMatch: hre.ethers.zeroPadBytes("0x", 32),
+        ifModifiedSince: 0
+      };
+
+      const headResponse = await wttpSite.connect(publicUser).HEAD(headRequest);
+      expect(headResponse.responseLine.code).to.equal(200);
+
+      const locateRequest = {
+        requestLine: {
+          path: "/test-resource",
+          protocol: "WTTP/3.0",
+          method: 2, // LOCATE
+        },
+        ifNoneMatch: hre.ethers.zeroPadBytes("0x", 32),
+        ifModifiedSince: 0
+      };
+
+      const locateResponse = await wttpSite.connect(publicUser).LOCATE(locateRequest);
+      expect(locateResponse.head.responseLine.code).to.equal(200);
+
+      // const putRequest = {
+      //   head: {
+      //     requestLine: {
+      //       path: "/test-resource",
+      //       protocol: "WTTP/3.0",
+      //       method: 3, // PUT
+      //     },
+      //     ifNoneMatch: hre.ethers.zeroPadBytes("0x", 32),
+      //     ifModifiedSince: 0
+      //   },
+      //   mimeType: "0x7470",
+      //   charset: "0x7538",
+      //   encoding: "0x6964",
+      //   language: "0x6575",
+      //   location: "0x6463",
+      //   data: [
+      //     {
+      //       data: hre.ethers.toUtf8Bytes("Test content"),
+      //       publisher: publicUser.address,
+      //       chunkIndex: 0
+      //     }
+      //   ]
+      // };
+
+      // const putResponse = await wttpSite.connect(publicUser).PUT(putRequest, { value: hre.ethers.parseEther("0.0001") });
+      // const receipt = await putResponse.wait();
+      // const putSuccessEvent = receipt?.logs.find(log => {
+      //   try {
+      //     const parsed = wttpSite.interface.parseLog({
+      //       topics: log.topics,
+      //       data: log.data
+      //     });
+      //     return parsed?.name === "PUTSuccess";
+      //   } catch {
+      //     return false;
+      //   }
+      // });
+
+      // const putSuccessArgs = wttpSite.interface.parseLog({
+      //   topics: putSuccessEvent.topics,
+      //   data: putSuccessEvent.data
+      // }).args;
+
+      // expect(putSuccessArgs.path).to.equal("/test-resource");
+      // expect(putSuccessArgs.code).to.equal(201);
+
+      // const headResponseWithContent = await wttpSite.connect(publicUser).HEAD(headRequest);
+      // expect(headResponseWithContent.responseLine.code).to.equal(200);
+      // expect(headResponseWithContent.headerInfo.methods).to.equal(DEFAULT_HEADER.methods);
+      // expect(headResponseWithContent.headerInfo.resourceAdmin).to.equal(hre.ethers.zeroPadBytes("0x", 32));
+        
+
+    });
   });
 
   describe("HEAD Requests", function () {
@@ -156,6 +295,7 @@ describe("WTTPSite", function () {
       const { wttpSite, siteAdmin, resourceAdminRole } = await loadFixture(deployWTTPFixture);
       
       const headerInfo = await createCustomHeader(true, resourceAdminRole);
+      // console.log(headerInfo);
       
       const defineRequest = {
         data: headerInfo,
@@ -204,7 +344,7 @@ describe("WTTPSite", function () {
       
       const headResponse = await wttpSite.HEAD(headRequest);
       // console.log(headResponse);
-      // console.log(resourceAdminRole);
+      console.log(resourceAdminRole);
 
       // Resource exists with headers but no content yet
       expect(headResponse.responseLine.code).to.equal(404);
@@ -237,12 +377,26 @@ describe("WTTPSite", function () {
       };
 
       const putTx = await wttpSite.connect(siteAdmin).PUT(putRequest, { value: hre.ethers.parseEther("0.0001") });
-      await putTx.wait();
-      // console.log(receipt);
+      const putReceipt = await putTx.wait();
+
+      const events = putReceipt?.logs.map(log => {
+        try {
+          return wttpSite.interface.parseLog({
+            topics: log.topics,
+            data: log.data
+          });
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+
+      const putSuccessEvent = events?.find(event => event?.name === "PUTSuccess");  
+      console.log(putSuccessEvent?.args.putResponse.head.headerInfo);
 
       // Now check the resource with content
       const headResponseWithContent = await wttpSite.HEAD(headRequest);
       console.log(headResponseWithContent);
+      console.log(headResponseWithContent.metadata);
       expect(headResponseWithContent.responseLine.code).to.equal(200);
       expect(headResponseWithContent.headerInfo.methods).to.equal(headerInfo.methods);
       expect(headResponseWithContent.headerInfo.resourceAdmin).to.equal(resourceAdminRole);
@@ -755,7 +909,7 @@ describe("WTTPSite", function () {
       const locateResponse = await wttpSite.LOCATE(locateRequest);
       
       // Check LOCATE response
-      expect(locateResponse.head.responseLine.code).to.equal(204);
+      expect(locateResponse.head.responseLine.code).to.equal(200);
       expect(locateResponse.dataPoints.length).to.equal(1); // One content chunk
       expect(locateResponse.dataPoints[0]).to.not.equal(hre.ethers.zeroPadBytes("0x", 32)); // Valid data point address
     });

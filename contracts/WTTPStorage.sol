@@ -81,7 +81,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         return header[_headerAddress];
     }
 
-    function _updateHeader(
+    function _updateDefaultHeader(
         HeaderInfo memory _header
     ) internal virtual onlySuperAdmin {
         header[bytes32(0)] = _header;
@@ -149,7 +149,16 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         metadata[_path].mimeType = _metadata.mimeType;
         metadata[_path].charset = _metadata.charset;
         metadata[_path].encoding = _metadata.encoding;
+        metadata[_path].language = _metadata.language;
         metadata[_path].location = _metadata.location;
+
+        HeaderInfo memory _header = header[_metadata.header];
+
+
+        if (header[_metadata.header].methods & uint16(Method.GET) != 0) {
+            // If GET is enabled, enable LOCATE as well
+            _header.methods = _header.methods | uint16(Method.LOCATE);
+        }
 
         // extra instructions for immutable resources
         if (header[_metadata.header].cache.immutableFlag && resource[_path].length > 0) {
@@ -160,18 +169,16 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
             modificationMethods[2] = Method.DELETE;
             uint16 modificationMethodsMask = methodsToMask(modificationMethods);
 
-            HeaderInfo memory _header = header[_metadata.header];
             // Use bitwise AND with inverted mask to disable only those methods
             uint16 _methods = _header.methods & ~modificationMethodsMask;
 
             if (_methods != _header.methods) {
                 _header.methods = _methods;
-                bytes32 _headerAddress = _createHeader(_header);
-                _metadata.header = _headerAddress;
-                
             }
         }
 
+        bytes32 _headerAddress = _createHeader(_header);
+        _metadata.header = _headerAddress;
         metadata[_path].header = _metadata.header;
 
     }

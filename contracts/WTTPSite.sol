@@ -85,8 +85,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
             string memory _path = headRequest.requestLine.path;
             headResponse.metadata = _readMetadata(_path);
             headResponse.headerInfo = _readHeader(headResponse.metadata.header);
-            bytes32[] memory _dataPoints = _readResource(_path);
-            headResponse.etag = calculateEtag(headResponse.metadata, _dataPoints);
+            headResponse.etag = calculateEtag(headResponse.metadata, _readResource(_path));
         
             if (headResponse.metadata.size == 0) {
                 headResponse.responseLine.code = 404;
@@ -128,7 +127,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         locateResponse.head = _HEAD(locateRequest);
         if (locateResponse.head.responseLine.code == 500) {
             locateResponse.dataPoints = _readResource(locateRequest.requestLine.path);
-            locateResponse.head.responseLine.code = 204;
+            locateResponse.head.responseLine.code = 200;
         }
     }
 
@@ -210,9 +209,22 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         defineRequest.head.requestLine.method = Method.DEFINE;
         defineResponse.head = _HEAD(defineRequest.head);
         if (
+            defineResponse.head.responseLine.code == 404 ||
             defineResponse.head.responseLine.code == 500
         ) {
             defineResponse.headerAddress = _createHeader(defineRequest.data);
+            ResourceMetadata memory _metadata = _readMetadata(defineRequest.head.requestLine.path);
+            _updateMetadata(defineRequest.head.requestLine.path, ResourceMetadata({
+                mimeType: _metadata.mimeType,
+                charset: _metadata.charset,
+                encoding: _metadata.encoding,
+                language: _metadata.language,
+                location: _metadata.location,
+                size: 0,
+                version: 0,
+                lastModified: 0,
+                header: defineResponse.headerAddress
+            }));
             defineResponse.head.responseLine.code = 201;
         }
 
@@ -244,12 +256,25 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     /// @return putResponse Response containing created resource information
     function PUT(
         PUTRequest memory putRequest
-    ) public payable onlyResourceAdmin(putRequest.head.requestLine.path) returns (LOCATEResponse memory putResponse) {
+    ) public payable onlyResourceAdmin(putRequest.head.requestLine.path) 
+    returns (LOCATEResponse memory putResponse) {
         putRequest.head.requestLine.method = Method.PUT;
         putResponse.head = _HEAD(putRequest.head);
         if (
+            putResponse.head.responseLine.code == 404 ||
             putResponse.head.responseLine.code == 500
         ) {
+            _updateMetadata(putRequest.head.requestLine.path, ResourceMetadata({
+                mimeType: putRequest.mimeType,
+                charset: putRequest.charset,
+                encoding: putRequest.encoding,
+                language: putRequest.language,
+                location: putRequest.location,
+                size: 0, // calculated
+                version: 0, // calculated
+                lastModified: 0, // calculated
+                header: _readMetadata(putRequest.head.requestLine.path).header
+            }));
             _uploadResource(putRequest.head.requestLine.path, putRequest.data);
             putResponse.head.responseLine.code = 201;
         }

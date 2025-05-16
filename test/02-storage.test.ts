@@ -172,9 +172,10 @@ describe("TestStorage", function () {
       const headerAddress = await testStorage.testGetHeaderAddress(headerInfo);
 
       const metadata = {
-        mimeType: "0x7570", // text/plain
+        mimeType: "0x7470", // text/plain
         charset: "0x7508", // utf-8
         encoding: "0x6964", // identity
+        language: "0x6575", // eU
         location: "0x6463", // datapoint/chunk
         size: 0,
         version: 0,
@@ -223,9 +224,10 @@ describe("TestStorage", function () {
       const headerAddress = await testStorage.testGetHeaderAddress(headerInfo);
       
       const metadata = {
-        mimeType: "0x7570", // text/plain
+        mimeType: "0x7470", // text/plain
         charset: "0x7508", // utf-8
         encoding: "0x6964", // identity
+        language: "0x6575", // eU
         location: "0x6463", // datapoint/chunk
         size: 0,
         version: 0,
@@ -283,6 +285,7 @@ describe("TestStorage", function () {
         mimeType: "0x7570", // text/plain
         charset: "0x7508", // utf-8
         encoding: "0x6964", // identity
+        language: "0x6575", // eU
         location: "0x6463", // datapoint/chunk
         size: 0,
         version: 0,
