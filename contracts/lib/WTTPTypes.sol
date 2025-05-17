@@ -1,43 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-// ============ Data Point Registry Helper ============
-/// @notice Calculates a unique address for a data point
-/// @dev Uses keccak256 hash of concatenated version and data
-/// @param _data The data point
-/// @param _version The version of the data point
-/// @return bytes32 The calculated address
-function calculateDataPointAddress(
-    bytes memory _data,
-    uint8 _version
-) pure returns (bytes32) {
-    return keccak256(abi.encodePacked(_data, _version));
-}
-
 // ============ WTTP Permissions Contract ============
 // ============ Events ============
-event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 event SiteAdminChanged(bytes32 oldSiteAdmin, bytes32 newSiteAdmin);
-// event AdminRoleGranted(address indexed account);
-// event AdminRoleRevoked(address indexed account);
 event ResourceRoleCreated(bytes32 indexed role);
-// event ResourceRoleGranted(bytes32 indexed role, address indexed account);
-// event ResourceRoleRevoked(bytes32 indexed role, address indexed account);
-// event AccountBlacklisted(address indexed account);
-// event AccountWhitelisted(address indexed account);
 
 // ============ Errors ============
 error InvalidRole(bytes32 role);
-// error NotSuperAdmin(address account);
-// error NotSiteAdmin(address account);
-// error Blacklisted(address account);
 
 // ============ WTTP Storage Contract ============
 
 // ============ Events ============
-event MalformedParameter(string parameter, bytes value);
-event HeaderExists(bytes32 headerAddress);
-event ResourceExists(string path);
+// event MalformedParameter(string parameter, bytes value);
+// event HeaderExists(bytes32 headerAddress);
+// event ResourceExists(string path);
 event OutOfBoundsChunk(string path, uint256 chunkIndex);
 event MetadataUpdated(string path);
 event MetadataDeleted(string path);
@@ -75,8 +52,8 @@ enum Method {
 struct CacheControl {
     /// @notice Maximum age in seconds for client caching
     uint256 maxAge;
-    /// @notice Maximum age in seconds for shared caching
-    uint256 sMaxage;
+    // /// @notice Maximum age in seconds for shared caching
+    // uint256 sMaxage;
     /// @notice Prevents storing the response
     bool noStore;
     /// @notice Requires validation before using cached copy
@@ -85,16 +62,16 @@ struct CacheControl {
     bool immutableFlag;
     /// @notice Indicates response may be cached by any cache
     bool publicFlag;
-    /// @notice Requires revalidation after becoming stale
-    bool mustRevalidate;
-    /// @notice Requires proxy revalidation
-    bool proxyRevalidate;
-    /// @notice Requires underscores in the cache key
-    bool mustUnderstand;
-    /// @notice Grace period for serving stale content during revalidation
-    uint256 staleWhileRevalidate;
-    /// @notice Grace period for serving stale content during errors
-    uint256 staleIfError;
+    // /// @notice Requires revalidation after becoming stale
+    // bool mustRevalidate;
+    // /// @notice Requires proxy revalidation
+    // bool proxyRevalidate;
+    // /// @notice Requires underscores in the cache key
+    // bool mustUnderstand;
+    // /// @notice Grace period for serving stale content during revalidation
+    // uint256 staleWhileRevalidate;
+    // /// @notice Grace period for serving stale content during errors
+    // uint256 staleIfError;
 }
 
 /// @title Redirect Structure
@@ -305,56 +282,6 @@ struct GETResponse {
 }
 
 // ============ Constants ============
-
-// /// @title WTTP Constants Library
-// /// @notice Common constants for the WTTP protocol
-// /// @dev Centralizes constant definitions for consistency
-// library WTTPConstants {
-    
-//     // ============ Cache Control Constants ============
-//     CacheControl constant ZERO_CACHE_CONTROL = CacheControl({
-//         maxAge: 0,
-//         sMaxage: 0,
-//         noStore: false,
-//         noCache: false,
-//         immutableFlag: false,
-//         publicFlag: false,
-//         mustRevalidate: false,
-//         proxyRevalidate: false,
-//         mustUnderstand: false,
-//         staleWhileRevalidate: 0,
-//         staleIfError: 0
-//     });
-    
-//     CacheControl DEFAULT_CACHE_CONTROL = CacheControl({
-//         maxAge: 0,
-//         sMaxage: 0,
-//         noStore: false,
-//         noCache: false,
-//         immutableFlag: false,
-//         publicFlag: true,
-//         mustRevalidate: false,
-//         proxyRevalidate: false,
-//         mustUnderstand: false,
-//         staleWhileRevalidate: 0,
-//         staleIfError: 0
-//     });
-    
-//     // ============ Method Constants ============
-    
-//     // Get the bitmask for all methods
-//     uint16 constant MAX_METHODS = 511; // 2^9 - 1, representing all 9 methods
-    
-//     // ============ Header Constants ============
-    
-//     HeaderInfo ZERO_HEADER = HeaderInfo({
-//         methods: 0,
-//         cache: ZERO_CACHE_CONTROL,
-//         redirect: Redirect(0, ""),
-//         resourceAdmin: bytes32(0)
-//     });
-    
-//     bytes32 constant ZERO_HEADER_HASH = keccak256(abi.encode(ZERO_HEADER));
     
 //     // The default headers need to be constructed in a function since they use methodsToMask
 //     function getDefaultFileHeader() internal pure returns (HeaderInfo memory) {
@@ -432,10 +359,3 @@ struct GETResponse {
 //             header: getHeaderAddress(getDefaultDirectoryHeader())
 //         });
 //     }
-    
-//     // ============ Error Constants ============
-    
-//     // Error codes could also be defined here
-//     // string constant ERROR_RESOURCE_IMMUTABLE = "Resource is immutable";
-//     // string constant ERROR_NOT_RESOURCE_ADMIN = "Not a resource admin";
-// } 

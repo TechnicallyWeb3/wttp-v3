@@ -2,7 +2,7 @@
 
 ## Overview
 
-WTTP (Web3 Transfer Transport Protocol) is a blockchain-based protocol that implements HTTP-like functionality for storing, retrieving, and managing web resources directly on the blockchain. It provides a standardized way to interact with on-chain content using familiar web paradigms.
+WTTP (Web Three Transfer Protocol) is a blockchain-based protocol that implements HTTP-like functionality for storing, retrieving, and managing web resources directly on the blockchain. It provides a standardized way to interact with on-chain content using familiar web paradigms.
 
 This implementation (v3) focuses on separating core storage functionality from the protocol logic, enabling more efficient resource management and extended capabilities like byte range requests.
 
