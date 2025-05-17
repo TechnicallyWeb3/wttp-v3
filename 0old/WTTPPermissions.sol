@@ -106,9 +106,9 @@ abstract contract WTTPPermissionsV3 is AccessControl {
     //     emit OwnershipTransferred(msg.sender, _newOwner);
     // }
 
-    function changeSiteAdmin(bytes32 _newSiteAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        emit SiteAdminChanged(SITE_ADMIN_ROLE, _newSiteAdmin);
-        SITE_ADMIN_ROLE = _newSiteAdmin;
-    }
+    // function changeSiteAdmin(bytes32 _newSiteAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    //     emit SiteAdminChanged(SITE_ADMIN_ROLE, _newSiteAdmin);
+    //     SITE_ADMIN_ROLE = _newSiteAdmin;
+    // }
 
 }

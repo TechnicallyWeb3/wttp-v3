@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { TestPermissions } from "../../typechain-types";
+import { TestPermissions } from "../typechain-types";
 
 describe("TestPermissions", function () {
   let testPermissions: TestPermissions;
@@ -20,7 +20,7 @@ describe("TestPermissions", function () {
     const TestPermissions = await hre.ethers.getContractFactory("TestPermissions");
     testPermissions = await TestPermissions.deploy(owner.address);
     
-    return { testPermissions, owner, siteAdmin, publicUser, blacklistedUser };
+    return { TestPermissions, testPermissions, owner, siteAdmin, publicUser, blacklistedUser };
   }
 
   describe("Role Getters", function () {
@@ -454,6 +454,36 @@ describe("TestPermissions", function () {
       await expect(testPermissions.connect(owner).testValidRole(superAdminRole))
         .to.be.reverted;
       await expect(testPermissions.connect(owner).testValidRole(siteAdminRole))
+        .to.be.reverted;
+    });
+  });
+  describe("Deployment", function () {
+    it("Should allow deploying the contract on someone else's behalf", async function () {
+      const { TestPermissions, owner: deployer, siteAdmin: otherUser, publicUser } = await loadFixture(deployTestPermissionsFixture);
+      
+      const testPermissionsInstance = await TestPermissions.deploy(otherUser.address);
+      
+      // Get the roles for checking
+      const superAdminRole = await testPermissionsInstance.getSuperAdminRole();
+      
+      // Verify otherUser is the super admin (owner), not the deployer
+      expect(await testPermissionsInstance.hasRole(superAdminRole, otherUser.address)).to.be.true;
+      expect(await testPermissionsInstance.isSuperAdmin(otherUser.address)).to.be.true;
+      
+      // Deployer should not be super admin unless explicitly granted
+      expect(await testPermissionsInstance.hasRole(superAdminRole, deployer.address)).to.be.false;
+      expect(await testPermissionsInstance.isSuperAdmin(deployer.address)).to.be.false;
+      
+      // Test that the actual owner can perform admin actions
+      // For example, granting a role to another user
+      const randomRole = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("RANDOM_ROLE"));
+      await testPermissionsInstance.connect(otherUser).createResourceRole(randomRole);
+      await testPermissionsInstance.connect(otherUser).grantRole(randomRole, publicUser.address);
+      
+      expect(await testPermissionsInstance.hasRole(randomRole, publicUser.address)).to.be.true;
+      
+      // Deployer should not be able to perform admin actions
+      await expect(testPermissionsInstance.connect(deployer).grantRole(randomRole, deployer.address))
         .to.be.reverted;
     });
   });

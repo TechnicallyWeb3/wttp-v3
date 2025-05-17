@@ -14,7 +14,7 @@ contract TestStorage is WTTPStorageV3 {
         address _dpr, 
         address _owner, 
         HeaderInfo memory _defaultHeader
-    ) WTTPStorageV3(_owner, _dpr, _defaultHeader) {}
+    ) WTTPStorageV3(_dpr, _owner, _defaultHeader) {}
 
     function testGetHeaderAddress(HeaderInfo memory _header) public pure returns (bytes32) {
         return getHeaderAddress(_header);

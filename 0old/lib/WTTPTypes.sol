@@ -194,6 +194,8 @@ struct ResponseLine {
     string protocol;
     /// @notice HTTP status code (e.g., 200, 404)
     uint16 code;
+    /// @notice WTTP method (e.g., GET, HEAD, PUT, PATCH, DELETE, LOCATE, DEFINE)
+    Method method;
 }
 
 // OPTIONSRequest is the same as RequestLine

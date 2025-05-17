@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { WTTPSiteV3, DataPointRegistryV2, DataPointStorageV2 } from "../../typechain-types";
+import { WTTPSiteV3, DataPointRegistryV2, DataPointStorageV2 } from "../typechain-types";
 
 describe("WTTPSite", function () {
   let wttpSite: WTTPSiteV3;
@@ -98,14 +98,9 @@ describe("WTTPSite", function () {
     it("Should correctly check WTTP version compatibility", async function () {
       const { wttpSite } = await loadFixture(deployWTTPFixture);
       
-      const optionsRequest = {
-        path: "/test-resource",
-        protocol: "WTTP/3.1",
-        method: 1, // OPTIONS
-      };
-
-    const optionsResponse = await wttpSite.OPTIONS(optionsRequest);
-    expect(optionsResponse.responseLine.code).to.equal(505);
+      // Assuming protocol version is "1.0" or "3.0"
+      expect(await wttpSite.compatibleWTTPVersion("WTTP/3.0")).to.be.true;
+      expect(await wttpSite.compatibleWTTPVersion("WTTP/1.0")).to.be.false;
     });
     it("Should correctly check WTTP version compatibility using OPTIONS and SuperAdmin", async function () {
       const { wttpSite, owner } = await loadFixture(deployWTTPFixture);

@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { TestStorage, DataPointRegistryV2, DataPointStorageV2 } from "../../typechain-types";
+import { TestStorage, DataPointRegistryV2, DataPointStorageV2 } from "../typechain-types";
 
 describe("TestStorage", function () {
   let testStorage: TestStorage;
@@ -51,8 +51,8 @@ describe("TestStorage", function () {
     const TestStorage = await hre.ethers.getContractFactory("TestStorage");
     testStorage = await TestStorage.deploy(await dpr.getAddress(), owner.address, DEFAULT_HEADER);
     
-    // // Grant site admin role
-    // await testStorage.grantRole(siteAdminRole, siteAdmin.address);
+    // Grant site admin role
+    await testStorage.grantRole(siteAdminRole, siteAdmin.address);
     
     return { testStorage, dpr, dps, owner, siteAdmin, publicUser };
   }

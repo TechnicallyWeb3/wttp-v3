@@ -10,17 +10,9 @@ import "./interfaces/IDataPointStorageV2.sol";
 /// @dev Core storage functionality for the WTTP protocol
 abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
-    constructor(
-        address _owner,
-        address _dpr, 
-        HeaderInfo memory _defaultHeader
-    ) WTTPPermissionsV3(_owner) {
-        DPR_ = IDataPointRegistryV2(_dpr);
-        header[bytes32(0)] = _defaultHeader;
-    }
-
     uint16 constant MAX_METHODS = 511;
     HeaderInfo zeroHeader;
+    bytes32 immutable ZERO_HEADER = keccak256(abi.encode(zeroHeader));
     ResourceMetadata zeroMetadata;
 
     IDataPointRegistryV2 internal DPR_;
@@ -33,8 +25,17 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         return DPR_;
     }
 
-    function setDPR(address _dpr) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setDPR(address _dpr) public onlyRole(DEFAULT_ADMIN_ROLE) {
         DPR_ = IDataPointRegistryV2(_dpr);
+    }
+
+    constructor(
+        address _dpr, 
+        address _owner, 
+        HeaderInfo memory _defaultHeader
+    ) WTTPPermissionsV3(_owner) {
+        DPR_ = IDataPointRegistryV2(_dpr);
+        header[bytes32(0)] = _defaultHeader;
     }
 
     mapping(bytes32 header => HeaderInfo) private header;
@@ -56,9 +57,30 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         headerAddress = getHeaderAddress(_header);
 
         // comparing against methods == 0 will save gas, but this is more accurate
-        // if (getHeaderAddress(header[headerAddress]) == getHeaderAddress(zeroHeader)) {
-        if (header[headerAddress].methods == 0) {
+        if (getHeaderAddress(header[headerAddress]) == ZERO_HEADER) {
+
+            if (
+                _header.methods == 0 || 
+                _header.methods > MAX_METHODS
+            ) {
+                emit MalformedParameter("methods", abi.encode(_header.methods));
+            }
+
+            // redirect code must be 0 or between 300 and 309
+            // location must be set if code is a valid 3xx code
+            if (
+                (_header.redirect.code < 300
+                || _header.redirect.code > 309)
+            ) {
+                if (_header.redirect.code > 0) {
+                    emit MalformedParameter("redirect", abi.encode(_header.redirect));
+                }
+            }
+
             header[headerAddress] = _header;
+
+        } else {
+            emit HeaderExists(headerAddress);
         }
     }
 
@@ -68,9 +90,9 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         return header[_headerAddress];
     }
 
-    function _setDefaultHeader(
+    function _updateDefaultHeader(
         HeaderInfo memory _header
-    ) internal virtual {
+    ) external virtual onlyRole(SITE_ADMIN_ROLE) {
         header[bytes32(0)] = _header;
     }
 
@@ -95,11 +117,18 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         // set calculated values
         _updateMetadataStats(_path);
 
-        _metadata.size = metadata[_path].size;
-        _metadata.version = metadata[_path].version;
-        _metadata.lastModified = metadata[_path].lastModified;
+        // store the rest of the metadata
+        metadata[_path].mimeType = _metadata.mimeType;
+        metadata[_path].charset = _metadata.charset;
+        metadata[_path].encoding = _metadata.encoding;
+        metadata[_path].language = _metadata.language;
+        metadata[_path].location = _metadata.location;
 
-        metadata[_path] = _metadata;
+        HeaderInfo memory _header = header[_metadata.header];
+
+        bytes32 _headerAddress = _createHeader(_header);
+        _metadata.header = _headerAddress;
+        metadata[_path].header = _metadata.header;
 
     }
     
@@ -116,9 +145,17 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         DataRegistration memory _dataRegistration
     ) internal virtual returns (bytes32 _dataPointAddress) {
 
-        _dataPointAddress = DPS().calculateAddress(_dataRegistration.data);
+        if (bytes(_path).length == 0) {
+            emit MalformedParameter("path", abi.encode(_path));
+        }
+        if (_dataRegistration.data.length == 0) {
+            emit MalformedParameter("data", abi.encode(_dataRegistration.data));
+        }
+        _dataPointAddress = calculateDataPointAddress(_dataRegistration.data, DPS().VERSION());
 
-        DPR_.registerDataPoint{value: DPR_.getDataPointRoyalty(_dataPointAddress)}(
+        uint256 _royalty = DPR_.getDataPointRoyalty(_dataPointAddress);
+
+        DPR_.registerDataPoint{value: _royalty}(
             _dataRegistration.data,
             _dataRegistration.publisher
         );
