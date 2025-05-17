@@ -11,7 +11,7 @@ task("upload", "Upload a file to a WTTP site")
     const { uploadFile } = require("../scripts/uploadFile");
     
     // Connect to the WTTP site
-    const wtppSite = await hre.ethers.getContractAt("WTTPSiteImpl", site);
+    const wtppSite = await hre.ethers.getContractAt("Web3Site", site);
     
     // Upload the file
     await uploadFile(wtppSite, source, destination);

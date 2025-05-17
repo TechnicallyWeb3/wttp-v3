@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import fs from "fs";
 import path from "path";
-import { WTTPSiteImpl } from "../typechain-types";
+import { Web3Site } from "../typechain-types";
 
 // Constants
 const CHUNK_SIZE = 32 * 1024; // 32KB chunks
@@ -17,36 +17,64 @@ function chunkData(data: Buffer, chunkSize: number): Buffer[] {
 }
 
 // Helper function to determine MIME type from file extension
-function getMimeType(filePath: string): string {
+export function getMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   const mimeTypes: Record<string, string> = {
     ".html": "text/html",
-    ".css": "text/css",
+    ".css": "text/css", 
     ".js": "application/javascript",
     ".json": "application/json",
     ".png": "image/png",
     ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
+    ".jpeg": "image/jpeg", 
     ".gif": "image/gif",
     ".svg": "image/svg+xml",
     ".pdf": "application/pdf",
     ".txt": "text/plain",
     ".md": "text/markdown",
+    ".xml": "application/xml",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf", 
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
   };
   
   return mimeTypes[ext] || "application/octet-stream";
 }
 
 // Helper function to convert MIME type to bytes2
-function mimeTypeToBytes2(mimeType: string): string {
-  // This is a simplified implementation
-  // In a real implementation, you would map MIME types to standardized bytes2 values
-  return ethers.id(mimeType).slice(0, 10); // Take first 10 chars (including 0x)
+export function mimeTypeToBytes2(mimeType: string): string {
+  // Map MIME types to 2-byte identifiers using 1-letter codes
+  const mimeTypeMap: Record<string, string> = {
+    'text/html': '0x7468', // th
+    'text/javascript': '0x616a', // aj (defaults to application/javascript)
+    'text/css': '0x7463', // tc 
+    'text/markdown': '0x746d', // tm
+    'text/plain': '0x7470', // tp
+    'application/javascript': '0x616a', // aj
+    'application/xml': '0x6178', // ax
+    'application/pdf': '0x6170', // ap
+    'application/json': '0x616f', // ao (object)
+    'image/png': '0x6970', // ip
+    'image/jpeg': '0x696a', // ij
+    'image/gif': '0x6967', // ig
+    'image/svg+xml': '0x6973', // is
+    'image/webp': '0x6977', // iw
+    'image/x-icon': '0x6969', // ii
+    'font/ttf': '0x6674', // ft
+    'font/otf': '0x666f', // fo
+    'font/woff': '0x6677', // fw
+    'font/woff2': '0x6632', // f2
+    'application/octet-stream': '0x6273' // bs (binary stream)
+  };
+  return mimeTypeMap[mimeType] || '0x6273'; // Default to binary stream
 }
 
 // Main upload function
 export async function uploadFile(
-  wtppSite: WTTPSiteImpl,
+  wtppSite: Web3Site,
   sourcePath: string,
   destinationPath: string
 ) {
@@ -80,7 +108,7 @@ export async function uploadFile(
   };
   
   const headResponse = await wtppSite.HEAD(headRequest);
-  const resourceExists = headResponse.responseLine.code !== 404;
+  const resourceExists = headResponse.responseLine.code !== 404n;
   
   // Prepare data registrations
   const dataRegistrations = chunks.map((chunk, index) => ({
@@ -88,6 +116,8 @@ export async function uploadFile(
     chunkIndex: index,
     publisher: signerAddress
   }));
+
+  let royalty = [0n];
   
   // Check royalties for each chunk before uploading
   for (let i = 0; i < dataRegistrations.length; i++) {
@@ -105,41 +135,49 @@ export async function uploadFile(
     const dpr = await ethers.getContractAt("DataPointRegistryV2", dprAddress);
     
     // Get the royalty
-    const royalty = await dpr.getDataPointRoyalty(dataPointAddress);
+    royalty[i] = await dpr.getDataPointRoyalty(dataPointAddress);
     
-    console.log(`Chunk ${i}: Royalty required: ${ethers.formatEther(royalty)} ETH`);
+    console.log(`Chunk ${i}: Royalty required: ${ethers.formatEther(royalty[i])} ETH`);
     
     // You could add logic here to decide whether to proceed based on royalty amount
   }
   
+  let startIndex = 0;
+
+  const mimeTypeMatches = headResponse.metadata.mimeType === mimeTypeBytes2;
+
   // Upload the file
-  if (resourceExists) {
-    // Use PATCH to update existing resource
-    console.log("Resource exists, using PATCH to update...");
-    const patchRequest = {
-      head: headRequest,
-      data: dataRegistrations
-    };
-    
-    const tx = await wtppSite.PATCH(patchRequest);
-    await tx.wait();
-    console.log("File updated successfully!");
-  } else {
+  if (!resourceExists || !mimeTypeMatches) {
     // Use PUT to create new resource
     console.log("Resource does not exist, using PUT to create...");
     const putRequest = {
       head: headRequest,
       mimeType: mimeTypeBytes2,
-      charset: "0x0000", // Default charset
-      encoding: "0x0000", // Default encoding
-      language: "0x0000", // Default language
-      data: dataRegistrations
+      charset: "0x7556", // u8 = utf-8
+      encoding: "0x6865", // id = identity
+      language: "0x6675", // eu = english-US
+      data: [dataRegistrations[0]]
     };
     
-    const tx = await wtppSite.PUT(putRequest);
+    const tx = await wtppSite.PUT(putRequest, { value: royalty[0] });
     await tx.wait();
     console.log("File created successfully!");
+    startIndex = 1;
   }
+
+  for (let i = startIndex; i < dataRegistrations.length; i++) {
+    // Use PATCH to update existing resource
+    console.log("Resource exists, using PATCH to update...");
+    const patchRequest = {
+      head: headRequest,
+      data: [dataRegistrations[i]]
+    };
+  
+    const tx = await wtppSite.PATCH(patchRequest, { value: royalty[i] });
+    await tx.wait();
+    console.log("File updated successfully!");
+  }
+
   
   // Verify upload
   const locateRequest = {
@@ -151,17 +189,9 @@ export async function uploadFile(
     ifModifiedSince: 0,
     ifNoneMatch: ethers.ZeroHash
   };
-  
-  // Create a response object with the data points
-  const response = {
-    dataPoints: dataRegistrations,
-    head: {
-      metadata: {
-        size: fileData.length,
-        mimeType: mimeType
-      }
-    }
-  };
+
+  const response = await wtppSite.LOCATE(locateRequest);
+  // console.log(response);
   
   console.log(`Uploaded file has ${response.dataPoints.length} chunks`);
   console.log(`File size: ${response.head.metadata.size} bytes`);
@@ -180,7 +210,7 @@ async function main() {
   const [siteAddress, sourcePath, destinationPath] = args;
   
   // Connect to the WTTP site
-  const wtppSite = await ethers.getContractAt("WTTPSiteImpl", siteAddress);
+  const wtppSite = await ethers.getContractAt("Web3Site", siteAddress);
   
   // Upload the file
   await uploadFile(wtppSite, sourcePath, destinationPath);

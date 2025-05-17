@@ -1,0 +1,60 @@
+// This module uses Hardhat Ignition to upload files to an existing WTTP site
+import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
+import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
+import { mimeTypeToBytes2 } from "../../scripts/uploadFile";
+import { getMimeType } from "../../scripts/uploadFile";
+
+// Function to read a file and split it into chunks
+function readFileIntoChunks(filePath: string, chunkSize: number = 32 * 1024) {
+  const fileContent = fs.readFileSync(filePath);
+  const chunks = [];
+  
+  for (let i = 0; i < fileContent.length; i += chunkSize) {
+    chunks.push(fileContent.slice(i, i + chunkSize));
+  }
+  
+  return chunks;
+}
+
+// Detect MIME type from file extension
+function getMimeTypeBytes(filePath: string): string {
+  return mimeTypeToBytes2(getMimeType(filePath));
+}
+
+const FileUploadModule = buildModule("FileUploadModule", (m) => {
+  // Hardcoded addresses - replace with your actual deployed contract addresses
+
+  const deployWeb3Site = buildModule("readFileModule", (m) => {
+    const DPRAddress = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"; // Replace with your actual DPR address
+  const dpr = m.contractAt("DataPointRegistryV2", DPRAddress);
+  const wttpSite = m.contract("Web3Site", [DPRAddress]);
+    return { dpr, wttpSite };
+  });
+
+  const { wttpSite } = m.useModule(deployWeb3Site);
+
+  const dataRegistrations = m.call(wttpSite, "PUT", [
+    // Get file parameters
+    m.getParameter("sourcePath", "./medium-test-results.json"),
+    m.getParameter("destinationPath", "/uploaded-file.json")
+  ]);
+
+  const dataRegistrations = m.call(wttpSite, "PUT", [
+    // Get file parameters
+    m.getParameter("sourcePath", "./medium-test-results.json"),
+    m.getParameter("destinationPath", "/uploaded-file.json")
+
+    const chunks = readFileIntoChunks(sourcePath);
+    const mimeType = getMimeTypeBytes(sourcePath);
+
+  });
+  
+  return {
+    wttpSite,
+    dpr
+  };
+});
+
+export default FileUploadModule; 

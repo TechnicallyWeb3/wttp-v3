@@ -2,12 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "./WTTPSite.sol";
-import "./interfaces/IWTTPSiteV3.sol";
 
-/// @title WTTP Site Implementation Contract
+/// @title WTTP 'Web3Site' Implementation Contract
 /// @notice Concrete implementation of the WTTPSiteV3 abstract contract
 /// @dev Provides a deployable implementation of the WTTP site
-contract WTTPSiteImpl is WTTPSiteV3 {
+contract Web3Site is WTTPSiteV3 {
 
     /// @notice Initializes the site contract with necessary dependencies
     /// @dev Sets up DPR and default header, then passes to parent constructor

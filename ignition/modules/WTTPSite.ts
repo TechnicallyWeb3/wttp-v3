@@ -21,8 +21,7 @@ const DEFAULT_HEADER = {
 
 const WTTPSiteModule = buildModule("WTTPSiteModule", (m) => {
   // Get parameters with defaults
-  const owner = m.getParameter("owner", "");
-  const dprAddress = m.getParameter("dprAddress", "");
+  const owner = m.getParameter("owner", m.getAccount(0));
   
   // Deploy the DataPointStorage if not provided
   const dataPointStorage = m.contract("DataPointStorageV2");
@@ -31,19 +30,17 @@ const WTTPSiteModule = buildModule("WTTPSiteModule", (m) => {
   const royaltyRate = m.getParameter("royaltyRate", ethers.parseEther("0.0001"));
   
   // Deploy the DataPointRegistry if not provided
-  const dataPointRegistry = dprAddress 
-    ? m.useContract("DataPointRegistryV2", dprAddress)
-    : m.contract("DataPointRegistryV2", [
-        owner || m.getAccount(0),
+  const dataPointRegistry = m.contract("DataPointRegistryV2", [
+        owner,
         dataPointStorage,
         royaltyRate
       ]);
   
   // Deploy the WTTP site
-  const wtppSite = m.contract("WTTPSiteImpl", [
+  const wtppSite = m.contract("Web3Site", [
     dataPointRegistry,
     DEFAULT_HEADER,
-    owner || m.getAccount(0)
+    owner
   ]);
   
   return { 

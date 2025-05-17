@@ -3,7 +3,7 @@ import { ethers } from "hardhat";
 import fs from "fs";
 import path from "path";
 import { uploadFile } from "../scripts/uploadFile";
-import { WTTPSiteImpl } from "../typechain-types";
+import { Web3Site } from "../typechain-types";
 
 describe("File Upload Tests", function () {
   // Test file path
@@ -12,7 +12,7 @@ describe("File Upload Tests", function () {
   const destinationPath = "/test-file.txt";
   
   // Contracts
-  let wtppSite: WTTPSiteImpl;
+  let wtppSite: Web3Site;
   
   before(async function () {
     // Create a test file
@@ -49,7 +49,7 @@ describe("File Upload Tests", function () {
       resourceAdmin: ethers.ZeroHash
     };
     
-    const WTTPSite = await ethers.getContractFactory("WTTPSiteImpl");
+    const WTTPSite = await ethers.getContractFactory("Web3Site");
     wtppSite = await WTTPSite.deploy(
       dataPointRegistry.target,
       DEFAULT_HEADER,
@@ -78,6 +78,7 @@ describe("File Upload Tests", function () {
   });
   
   it("Should update an existing file on the WTTP site", async function () {
+    await uploadFile(wtppSite, testFilePath, destinationPath);
     // Modify the test file
     const updatedContent = testFileContent + "Updated content.\n";
     fs.writeFileSync(testFilePath, updatedContent);
@@ -89,4 +90,5 @@ describe("File Upload Tests", function () {
     expect(response.dataPoints.length).to.be.greaterThan(0);
     expect(response.head.metadata.size).to.equal(updatedContent.length);
   });
+  
 });

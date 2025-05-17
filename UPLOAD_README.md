@@ -7,13 +7,15 @@ This repository contains Hardhat Ignition scripts to deploy a WTTP site and uplo
 To deploy a WTTP site, use the Hardhat Ignition module:
 
 ```bash
-npx hardhat ignition deploy ignition/modules/WTTPSite.ts
+npx hardhat ignition deploy ignition/modules/WTTPSite.ts --network <network>
 ```
 
 This will deploy:
 1. A DataPointStorage contract
 2. A DataPointRegistry contract
-3. A WTTPSiteImpl contract
+3. A Web3Site contract
+
+Note: The network must be specified, ignition scripts do not work on the hardhat evm.
 
 You can also provide parameters:
 

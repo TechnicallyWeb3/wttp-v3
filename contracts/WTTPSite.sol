@@ -305,6 +305,8 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
             _code == 500
         ) {
             string memory _path = putRequest.head.requestLine.path;
+            bytes32 _headerAddress = _readMetadata(_path).header;
+            _deleteResource(_path); // delete any existing resource
             _updateMetadata(_path, ResourceMetadata({
                 mimeType: putRequest.mimeType,
                 charset: putRequest.charset,
@@ -313,7 +315,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 size: 0, // calculated during upload
                 version: 0, // calculated during upload
                 lastModified: 0, // calculated during upload
-                header: _readMetadata(_path).header
+                header: _headerAddress
             }));
             _uploadResource(_path, putRequest.data);
             _headResponse.responseLine.code = 201; // Created
