@@ -254,7 +254,6 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 charset: _metadata.charset,
                 encoding: _metadata.encoding,
                 language: _metadata.language,
-                location: _metadata.location,
                 size: 0,
                 version: 0,
                 lastModified: 0,
@@ -311,7 +310,6 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 charset: putRequest.charset,
                 encoding: putRequest.encoding,
                 language: putRequest.language,
-                location: putRequest.location,
                 size: 0, // calculated during upload
                 version: 0, // calculated during upload
                 lastModified: 0, // calculated during upload
