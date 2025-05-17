@@ -44,11 +44,11 @@ describe("WTTPSiteNFT", function () {
     // Deploy DPR
     const DataPointRegistry = await hre.ethers.getContractFactory("DataPointRegistryV2");
     const royaltyRate = hre.ethers.parseEther("0.00001"); // 0.00001 ETH
-    dpr = await DataPointRegistry.deploy(owner.address, await dps.getAddress(), royaltyRate);
+    dpr = await DataPointRegistry.deploy(owner.address, dps.target, royaltyRate);
     
     // Deploy the NFT contract
     const NFTContract = await hre.ethers.getContractFactory("WTTPSiteNFT");
-    nft = await NFTContract.deploy(await dpr.getAddress(), DEFAULT_HEADER);
+    nft = await NFTContract.deploy(dpr.target, DEFAULT_HEADER);
     
     return { nft, dpr, dps, owner, user1, user2 };
   }
@@ -61,7 +61,7 @@ describe("WTTPSiteNFT", function () {
 
     it("Should set the correct DPR address", async function () {
       const { nft, dpr } = await loadFixture(deployNFTFixture);
-      expect(await nft.dprAddress()).to.equal(await dpr.getAddress());
+      expect(await nft.dprAddress()).to.equal(dpr.target);
     });
   });
   

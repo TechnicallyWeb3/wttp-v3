@@ -21,11 +21,11 @@ contract TestSite is WTTPSiteV3 {
     }
 
     function isSuperAdmin(address _account) public view returns (bool) {
-        return _isSuperAdmin(_account);
+        return hasRole(DEFAULT_ADMIN_ROLE, _account);
     }
 
     function isSiteAdmin(address _account) public view returns (bool) {
-        return _isSiteAdmin(_account);
+        return hasRole(SITE_ADMIN_ROLE, _account);
     }
  
 } 

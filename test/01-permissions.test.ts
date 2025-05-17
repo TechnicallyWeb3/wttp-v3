@@ -312,8 +312,8 @@ describe("TestPermissions", function () {
       // Create a resource role as regular user - should fail
       const resourceRole = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("RESOURCE_ROLE"));
       await expect(testPermissions.connect(publicUser).createResourceRole(resourceRole))
-        .to.be.revertedWithCustomError(testPermissions, "NotSiteAdmin")
-        .withArgs(publicUser.address);
+        .to.be.revertedWithCustomError(testPermissions, "AccessControlUnauthorizedAccount")
+        .withArgs(publicUser.address, siteAdminRole);
     });
     
     it("Should not allow creating invalid roles (system roles)", async function () {
@@ -398,16 +398,16 @@ describe("TestPermissions", function () {
       
       // Grant site admin role - should emit AdminRoleGranted
       await expect(testPermissions.connect(owner).grantRole(siteAdminRole, siteAdmin.address))
-        .to.emit(testPermissions, "AdminRoleGranted")
-        .withArgs(siteAdmin.address);
+        .to.emit(testPermissions, "RoleGranted")
+        .withArgs(siteAdminRole, siteAdmin.address, owner.address);
 
       // Create and grant a resource role - should emit ResourceRoleGranted
       const resourceRole = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("TEST_RESOURCE_ROLE"));
       await testPermissions.connect(owner).createResourceRole(resourceRole);
       
       await expect(testPermissions.connect(owner).grantRole(resourceRole, publicUser.address))
-        .to.emit(testPermissions, "ResourceRoleGranted")
-        .withArgs(resourceRole, publicUser.address);
+        .to.emit(testPermissions, "RoleGranted")
+        .withArgs(resourceRole, publicUser.address, owner.address);
     });
     
     it("Should emit correct events when revoking roles", async function () {
@@ -422,13 +422,13 @@ describe("TestPermissions", function () {
       
       // Revoke site admin role - should emit AdminRoleRevoked
       await expect(testPermissions.connect(owner).revokeRole(siteAdminRole, siteAdmin.address))
-        .to.emit(testPermissions, "AdminRoleRevoked")
-        .withArgs(siteAdmin.address);
+        .to.emit(testPermissions, "RoleRevoked")
+        .withArgs(siteAdminRole, siteAdmin.address, owner.address);
       
       // Revoke a resource role - should emit ResourceRoleRevoked
       await expect(testPermissions.connect(owner).revokeRole(resourceRole, publicUser.address))
-        .to.emit(testPermissions, "ResourceRoleRevoked")
-        .withArgs(resourceRole, publicUser.address);
+        .to.emit(testPermissions, "RoleRevoked")
+        .withArgs(resourceRole, publicUser.address, owner.address);
     });
   });
 

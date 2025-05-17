@@ -99,48 +99,6 @@ describe("TestStorage", function () {
       expect(retrievedHeader.methods).to.equal(headerInfo.methods);
     });
 
-    it("Should delete headers", async function () {
-      const { testStorage } = await loadFixture(deployTestStorageFixture);
-      
-      const headerInfo = {
-        cache: {
-          maxAge: 3600,
-          sMaxage: 1800,
-          noStore: false,
-          noCache: false,
-          immutableFlag: false,
-          publicFlag: true,
-          mustRevalidate: false,
-          proxyRevalidate: false,
-          mustUnderstand: false,
-          staleWhileRevalidate: 600,
-          staleIfError: 300
-        },
-        methods: 15,
-        redirect: {
-          code: 0,
-          location: ""
-        },
-        resourceAdmin: hre.ethers.zeroPadBytes("0x", 32)
-      };
-      
-      // Create header
-      const tx = await testStorage.testCreateHeader(headerInfo);
-      const receipt = await tx.wait();
-      
-      // Extract the returned bytes32 value from the transaction result
-      const headerAddress = await testStorage.testGetHeaderAddress(headerInfo);
-      // or if your contract emits an event with the header address:
-      // const headerAddress = receipt?.logs[0].topics[1];
-      
-      // Delete header
-      await expect(testStorage.testDeleteHeader(headerAddress))
-        .to.emit(testStorage, "Success");
-      
-      // Header should now be empty
-      const retrievedHeader = await testStorage.testReadHeader(headerAddress);
-      expect(retrievedHeader.methods).to.equal(0);
-    });
   });
 
   describe("Metadata Management", function () {

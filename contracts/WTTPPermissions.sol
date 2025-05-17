@@ -22,11 +22,16 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         SITE_ADMIN_ROLE = keccak256("SITE_ADMIN_ROLE");
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
         _setRoleAdmin(SITE_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
-        // _setRoleAdmin(PUBLIC_ROLE, SITE_ADMIN_ROLE);
-        _grantRole(SITE_ADMIN_ROLE, _owner);
     }
 
-    modifier validRole(bytes32 role) {
+    function hasRole(bytes32 role, address account) public view override returns (bool) {
+        if (super.hasRole(DEFAULT_ADMIN_ROLE, account)) {
+            return true;
+        }
+        return super.hasRole(role, account);
+    }
+
+    modifier notAdminRole(bytes32 role) {
         if(
             role == SITE_ADMIN_ROLE || 
             role == DEFAULT_ADMIN_ROLE
@@ -37,31 +42,28 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         _;
     }
 
-    function _isSuperAdmin(address account) internal view returns (bool) {
-        return hasRole(DEFAULT_ADMIN_ROLE, account);
-    }
+    // function _isSuperAdmin(address account) public virtual view returns (bool) {
+    //     return hasRole(DEFAULT_ADMIN_ROLE, account);
+    // }
 
-    modifier onlySuperAdmin() {
-        if(!_isSuperAdmin(msg.sender)) {
-            revert NotSuperAdmin(msg.sender);
-        }
-        _;
-    }
+    // modifier onlySuperAdmin() {
+    //     if(!_isSuperAdmin(msg.sender)) {
+    //         revert Forbidden(msg.sender, DEFAULT_ADMIN_ROLE);
+    //     }
+    //     _;
+    // }
 
-    /// @notice Checks if an address has site admin privileges
-    /// @param _admin Address to check
-    /// @return bool True if address is a site admin
-    function _isSiteAdmin(address _admin) internal view returns (bool) {
-        return (hasRole(SITE_ADMIN_ROLE, _admin) || hasRole(DEFAULT_ADMIN_ROLE, _admin));
-    }
+    // function _isSiteAdmin(address account) public virtual view returns (bool) {
+    //     return hasRole(SITE_ADMIN_ROLE, account);
+    // }
 
-    // Admin functions
-    modifier onlySiteAdmin() {
-        if(!_isSiteAdmin(msg.sender)) {
-            revert NotSiteAdmin(msg.sender);
-        }
-        _;
-    }
+    // modifier onlySiteAdmin() {
+    //     if(!_isSiteAdmin(msg.sender)) {
+    //         revert Forbidden(msg.sender, SITE_ADMIN_ROLE);
+    //     }
+    //     _;
+    // }
+
 
     // function _isPublic(address account) internal view returns (bool) {
     //     return !hasRole(PUBLIC_ROLE, account);
@@ -76,7 +78,7 @@ abstract contract WTTPPermissionsV3 is AccessControl {
        
     // Allows site admins to create resource-specific admin roles
     // modifier not needed since only site admins can use grantRole
-    function createResourceRole(bytes32 _role) external onlySiteAdmin validRole(_role) {
+    function createResourceRole(bytes32 _role) external onlyRole(SITE_ADMIN_ROLE) notAdminRole(_role) {
         _setRoleAdmin(_role, SITE_ADMIN_ROLE);
         emit ResourceRoleCreated(_role);
     }
@@ -86,38 +88,27 @@ abstract contract WTTPPermissionsV3 is AccessControl {
             revert InvalidRole(role);
         }
         super.grantRole(role, account);
-        if(role == SITE_ADMIN_ROLE) {
-            emit AdminRoleGranted(account);
-        // } else if(role == PUBLIC_ROLE) {
-        //     emit AccountBlacklisted(account);
-        } else {
-            emit ResourceRoleGranted(role, account);
-        }
+        // if(role == SITE_ADMIN_ROLE) {
+        //     emit AdminRoleGranted(account);
+        // // } else if(role == PUBLIC_ROLE) {
+        // //     emit AccountBlacklisted(account);
+        // } else {
+        //     emit ResourceRoleGranted(role, account);
+        // }
     }
 
-    function revokeRole(bytes32 role, address account) public override {
-        super.revokeRole(role, account);
-        if(role == SITE_ADMIN_ROLE) {
-            emit AdminRoleRevoked(account);
-        // } else if(role == PUBLIC_ROLE) {
-        //     emit AccountWhitelisted(account);
-        } else {
-            emit ResourceRoleRevoked(role, account);
-        }
-    }
+    // /// @notice Transfer ownership to a new address
+    // /// @dev Only callable by a super admin
+    // /// @param _newOwner Address of the new owner
+    // function transferOwnership(address _newOwner) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    //     // Grant the new owner super admin role
+    //     _grantRole(DEFAULT_ADMIN_ROLE, _newOwner);
+    //     emit OwnershipTransferred(msg.sender, _newOwner);
+    // }
 
-        /// @notice Transfer ownership to a new address
-    /// @dev Only callable by a super admin
-    /// @param _newOwner Address of the new owner
-    function transferOwnership(address _newOwner) external onlySuperAdmin {
-        // Grant the new owner super admin role
-        _grantRole(DEFAULT_ADMIN_ROLE, _newOwner);
-        emit OwnershipTransferred(msg.sender, _newOwner);
-    }
-
-    function changeSiteAdmin(bytes32 _newSiteAdmin) external onlySuperAdmin {
-        emit SiteAdminChanged(SITE_ADMIN_ROLE, _newSiteAdmin);
-        SITE_ADMIN_ROLE = _newSiteAdmin;
-    }
+    // function changeSiteAdmin(bytes32 _newSiteAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    //     emit SiteAdminChanged(SITE_ADMIN_ROLE, _newSiteAdmin);
+    //     SITE_ADMIN_ROLE = _newSiteAdmin;
+    // }
 
 }

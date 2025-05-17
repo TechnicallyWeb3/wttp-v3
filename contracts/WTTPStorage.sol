@@ -12,6 +12,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
     uint16 constant MAX_METHODS = 511;
     HeaderInfo zeroHeader;
+    bytes32 immutable ZERO_HEADER = keccak256(abi.encode(zeroHeader));
     ResourceMetadata zeroMetadata;
 
     IDataPointRegistryV2 internal DPR_;
@@ -24,7 +25,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         return DPR_;
     }
 
-    function setDPR(address _dpr) public onlySuperAdmin {
+    function setDPR(address _dpr) public onlyRole(DEFAULT_ADMIN_ROLE) {
         DPR_ = IDataPointRegistryV2(_dpr);
     }
 
@@ -54,7 +55,9 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         HeaderInfo memory _header
     ) internal virtual returns (bytes32 headerAddress) {
         headerAddress = getHeaderAddress(_header);
-        if (header[headerAddress].methods == 0) {
+
+        // comparing against methods == 0 will save gas, but this is more accurate
+        if (getHeaderAddress(header[headerAddress]) == ZERO_HEADER) {
 
             if (
                 _header.methods == 0 || 
@@ -63,7 +66,7 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
                 emit MalformedParameter("methods", abi.encode(_header.methods));
             }
 
-            // redirect code must be 0 or between 300 and 310
+            // redirect code must be 0 or between 300 and 309
             // location must be set if code is a valid 3xx code
             if (
                 (_header.redirect.code < 300
@@ -72,8 +75,6 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
                 if (_header.redirect.code > 0) {
                     emit MalformedParameter("redirect", abi.encode(_header.redirect));
                 }
-            } else if (bytes(_header.redirect.location).length > 0) {
-                emit MalformedParameter("redirect", abi.encode(_header.redirect));
             }
 
             header[headerAddress] = _header;
@@ -91,45 +92,8 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
 
     function _updateDefaultHeader(
         HeaderInfo memory _header
-    ) internal virtual onlySuperAdmin {
+    ) external virtual onlyRole(SITE_ADMIN_ROLE) {
         header[bytes32(0)] = _header;
-    }
-
-    function _deleteHeader(
-        bytes32 _headerAddress
-    ) internal virtual {
-        delete header[_headerAddress];
-    }
-
-    // Metadata
-    function _createMetadata(
-        string memory _path,
-        ResourceMetadata memory _metadata
-    ) internal virtual {
-        if (
-            header[_metadata.header].methods == 0 || 
-            header[_metadata.header].methods > MAX_METHODS
-        ) {
-            emit MalformedParameter("methods", abi.encode(header[_metadata.header].methods));
-        }
-        if (_metadata.mimeType == 0x0000) {
-            emit MalformedParameter("mimeType", abi.encode(_metadata.mimeType));
-        }
-        if (_metadata.charset == 0x0000) {
-            emit MalformedParameter("charset", abi.encode(_metadata.charset));
-        }
-        if (_metadata.encoding == 0x0000) {
-            emit MalformedParameter("encoding", abi.encode(_metadata.encoding));
-        }
-        if (_metadata.location == 0x0000) {
-            emit MalformedParameter("location", abi.encode(_metadata.location));
-        }
-        if (_metadata.header == bytes32(0) || _metadata.header == getHeaderAddress(zeroHeader)) {
-            emit MalformedParameter("header", abi.encode(_metadata.header));
-        }
-
-        _updateMetadata(_path, _metadata);
-
     }
 
     function _readMetadata(
@@ -161,23 +125,6 @@ abstract contract WTTPStorageV3 is WTTPPermissionsV3 {
         metadata[_path].location = _metadata.location;
 
         HeaderInfo memory _header = header[_metadata.header];
-
-        // extra instructions for immutable resources
-        if (header[_metadata.header].cache.immutableFlag && resource[_path].length > 0) {
-            // Create a mask that will turn off PUT, PATCH, and DELETE methods
-            Method[] memory modificationMethods = new Method[](3);
-            modificationMethods[0] = Method.PUT;
-            modificationMethods[1] = Method.PATCH;
-            modificationMethods[2] = Method.DELETE;
-            uint16 modificationMethodsMask = methodsToMask(modificationMethods);
-
-            // Use bitwise AND with inverted mask to disable only those methods
-            uint16 _methods = _header.methods & ~modificationMethodsMask;
-
-            if (_methods != _header.methods) {
-                _header.methods = _methods;
-            }
-        }
 
         bytes32 _headerAddress = _createHeader(_header);
         _metadata.header = _headerAddress;

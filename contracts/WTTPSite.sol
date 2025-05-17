@@ -2,23 +2,26 @@
 pragma solidity ^0.8.20;
 
 import "./WTTPStorage.sol";
-
+import "./WTTPPermissions.sol";
 /// @title WTTP Site Contract
 /// @notice Implements core WTTP protocol methods
 /// @dev Handles HTTP-like operations on the blockchain
 abstract contract WTTPSiteV3 is WTTPStorageV3 {
 
-        
+    function _getResourceAdmin(string memory _path) internal view returns (bytes32) {   
+        return _readHeader(_readMetadata(_path).header).resourceAdmin;
+    }
+
     function _isResourceAdmin(string memory _path, address _account) internal view returns (bool) {
-        bytes32 _resourceAdmin = _readHeader(_readMetadata(_path).header).resourceAdmin;
-        return _isSiteAdmin(_account) || 
+        bytes32 _resourceAdmin = _getResourceAdmin(_path);
+        return hasRole(SITE_ADMIN_ROLE, _account) || 
             hasRole(_resourceAdmin, _account) || 
             _resourceAdmin == bytes32(type(uint256).max); // indicates public access
     }
 
     modifier onlyResourceAdmin(string memory _path) {
         if (!_isResourceAdmin(_path, msg.sender)) {
-            revert Forbidden(_path, msg.sender);
+            revert Forbidden(msg.sender, _getResourceAdmin(_path));
         }
         _;
     }
@@ -43,7 +46,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
             _method == Method.PATCH || 
             _method == Method.DELETE;
         
-        if (_isSuperAdmin(msg.sender)) return true;
+        if (hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) return true;
 
         return writeMethod ? (
             _isResourceAdmin(_path, msg.sender) &&
@@ -57,18 +60,18 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         RequestLine memory optionsRequest
     ) internal view returns (OPTIONSResponse memory optionsResponse) {
         optionsResponse.responseLine.protocol = optionsRequest.protocol;
-        optionsResponse.responseLine.code = 500;
+        uint16 _code = 500;
         if (!compatibleWTTPVersion(optionsRequest.protocol)) {
-            optionsResponse.responseLine.code = 505;
+            _code = 505;
         } else if (!_methodAllowed(optionsRequest.path, optionsRequest.method)) {
-            optionsResponse.responseLine.code = 405;
+            _code = 405;
         } else if (optionsRequest.method == Method.OPTIONS) {
             optionsResponse.allow = _readHeader(
                 _readMetadata(optionsRequest.path).header
             ).methods;
-            optionsResponse.responseLine.code = 204;
+            _code = 204;
         }
-        
+        optionsResponse.responseLine.code = _code;
     }
 
     function OPTIONS(
@@ -81,31 +84,37 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     function _HEAD(
         HEADRequest memory headRequest
     ) internal view returns (HEADResponse memory headResponse) {
-        headResponse.responseLine = _OPTIONS(headRequest.requestLine).responseLine;
+        ResponseLine memory _responseLine = _OPTIONS(headRequest.requestLine).responseLine;
+        uint16 _code = _responseLine.code;
 
-        if (headResponse.responseLine.code == 500) {
+        if (_code == 500) {
             string memory _path = headRequest.requestLine.path;
-            headResponse.metadata = _readMetadata(_path);
-            headResponse.headerInfo = _readHeader(headResponse.metadata.header);
-            headResponse.etag = calculateEtag(headResponse.metadata, _readResource(_path));
+            ResourceMetadata memory _metadata = _readMetadata(_path);
+            HeaderInfo memory _headerInfo = _readHeader(_metadata.header);
+            bytes32 _etag = calculateEtag(_metadata, _readResource(_path));
         
-            if (headResponse.metadata.size == 0) {
-                headResponse.responseLine.code = 404;
+            if (_metadata.size == 0) {
+                _code = 404;
             } 
             // 3xx codes
             else if (
-                headResponse.etag == headRequest.ifNoneMatch || 
-                headRequest.ifModifiedSince > headResponse.metadata.lastModified
+                _etag == headRequest.ifNoneMatch || 
+                headRequest.ifModifiedSince > _metadata.lastModified
             ) {
-                headResponse.responseLine.code = 304;
+                _code = 304;
             }
-            else if (headResponse.headerInfo.redirect.code != 0) {
-                headResponse.responseLine.code = headResponse.headerInfo.redirect.code;
+            else if (_headerInfo.redirect.code != 0) {
+                _code = _headerInfo.redirect.code;
             }
             // 200 codes should be handled by the parent function
             else if (headRequest.requestLine.method == Method.HEAD) {
-                headResponse.responseLine.code = 200;
+                _code = 200;
             }
+            _responseLine.code = _code;
+            headResponse.responseLine = _responseLine;
+            headResponse.metadata = _metadata;
+            headResponse.headerInfo = _headerInfo;
+            headResponse.etag = _etag;
         }
     }
 
@@ -125,6 +134,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         HEADRequest memory locateRequest
     ) internal view returns (LOCATEResponse memory locateResponse) {
         locateResponse.head = _HEAD(locateRequest);
+        
         if (locateResponse.head.responseLine.code == 500) {
             locateResponse.dataPoints = _readResource(locateRequest.requestLine.path);
             locateResponse.head.responseLine.code = 200;
@@ -210,14 +220,17 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     function DEFINE(
         DEFINERequest memory defineRequest
     ) external onlyResourceAdmin(defineRequest.head.requestLine.path) 
-    returns (DEFINEResponse memory defineResponse) {
+    notImmutable(defineRequest.head.requestLine.path) returns (DEFINEResponse memory defineResponse) {
         defineRequest.head.requestLine.method = Method.DEFINE;
         defineResponse.head = _HEAD(defineRequest.head);
+        uint16 _code = defineResponse.head.responseLine.code;
+        bytes32 _headerAddress;
+
         if (
-            defineResponse.head.responseLine.code == 404 ||
-            defineResponse.head.responseLine.code == 500
+            _code == 404 ||
+            _code == 500
         ) {
-            defineResponse.headerAddress = _createHeader(defineRequest.data);
+            _headerAddress = _createHeader(defineRequest.data);
             ResourceMetadata memory _metadata = _readMetadata(defineRequest.head.requestLine.path);
             _updateMetadata(defineRequest.head.requestLine.path, ResourceMetadata({
                 mimeType: _metadata.mimeType,
@@ -228,10 +241,12 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 size: 0,
                 version: 0,
                 lastModified: 0,
-                header: defineResponse.headerAddress
+                header: _headerAddress
             }));
-            defineResponse.head.responseLine.code = 201;
+            _code = 201;
         }
+        defineResponse.head.responseLine.code = _code;
+        defineResponse.headerAddress = _headerAddress;
 
         emit DEFINESuccess(msg.sender, defineResponse);
     }
@@ -242,7 +257,8 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     /// @return deleteResponse Response confirming deletion
     function DELETE(
         HEADRequest memory deleteRequest
-    ) public onlyResourceAdmin(deleteRequest.requestLine.path) returns (HEADResponse memory deleteResponse) {
+    ) public onlyResourceAdmin(deleteRequest.requestLine.path) 
+    notImmutable(deleteRequest.requestLine.path) returns (HEADResponse memory deleteResponse) {
         deleteRequest.requestLine.method = Method.DELETE;
         deleteResponse = _HEAD(deleteRequest);
         if (
@@ -296,7 +312,8 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     /// @return patchResponse Response containing updated resource information
     function PATCH(
         PATCHRequest memory patchRequest
-    ) public payable onlyResourceAdmin(patchRequest.head.requestLine.path) returns (LOCATEResponse memory patchResponse) {
+    ) public payable onlyResourceAdmin(patchRequest.head.requestLine.path) 
+    notImmutable(patchRequest.head.requestLine.path) returns (LOCATEResponse memory patchResponse) {
         patchRequest.head.requestLine.method = Method.PATCH;
         patchResponse.head = _HEAD(patchRequest.head);
         if (

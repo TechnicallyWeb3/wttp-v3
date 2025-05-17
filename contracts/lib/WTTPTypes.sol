@@ -18,19 +18,19 @@ function calculateDataPointAddress(
 // ============ Events ============
 event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 event SiteAdminChanged(bytes32 oldSiteAdmin, bytes32 newSiteAdmin);
-event AdminRoleGranted(address indexed account);
-event AdminRoleRevoked(address indexed account);
+// event AdminRoleGranted(address indexed account);
+// event AdminRoleRevoked(address indexed account);
 event ResourceRoleCreated(bytes32 indexed role);
-event ResourceRoleGranted(bytes32 indexed role, address indexed account);
-event ResourceRoleRevoked(bytes32 indexed role, address indexed account);
-event AccountBlacklisted(address indexed account);
-event AccountWhitelisted(address indexed account);
+// event ResourceRoleGranted(bytes32 indexed role, address indexed account);
+// event ResourceRoleRevoked(bytes32 indexed role, address indexed account);
+// event AccountBlacklisted(address indexed account);
+// event AccountWhitelisted(address indexed account);
 
 // ============ Errors ============
 error InvalidRole(bytes32 role);
-error NotSuperAdmin(address account);
-error NotSiteAdmin(address account);
-error Blacklisted(address account);
+// error NotSuperAdmin(address account);
+// error NotSiteAdmin(address account);
+// error Blacklisted(address account);
 
 // ============ WTTP Storage Contract ============
 
@@ -47,7 +47,7 @@ event ResourceDeleted(string path);
 
 // ============ Errors ============
 error ResourceImmutable(string path);
-error Forbidden(string path, address account);
+error Forbidden(address account, bytes32 role);
 // error OutOfBoundsChunk(string path, uint256 chunkIndex);
 
 // ============ Enum Definitions ============

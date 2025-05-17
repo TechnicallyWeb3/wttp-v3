@@ -29,14 +29,9 @@ contract TestStorage is WTTPStorageV3 {
         return _readHeader(_headerAddress);
     }
     
-    function testDeleteHeader(bytes32 _headerAddress) public {
-        _deleteHeader(_headerAddress);
-        emit Success();
-    }
-    
     // Expose metadata functions
     function testCreateMetadata(string memory _path, ResourceMetadata memory _metadata) public {
-        _createMetadata(_path, _metadata);
+        _updateMetadata(_path, _metadata);
         emit Success();
     }
     

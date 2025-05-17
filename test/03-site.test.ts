@@ -403,7 +403,7 @@ describe("WTTPSite", function () {
     });
     
     it("Should prevent non-admins from defining resource headers", async function () {
-      const { wttpSite, publicUser } = await loadFixture(deployWTTPFixture);
+      const { wttpSite, publicUser, resourceAdminRole } = await loadFixture(deployWTTPFixture);
       
       const headerInfo = await createCustomHeader();
       
@@ -423,7 +423,7 @@ describe("WTTPSite", function () {
       // Regular user shouldn't be able to define headers
       await expect(wttpSite.connect(publicUser).DEFINE(defineRequest))
         .to.be.revertedWithCustomError(wttpSite, "Forbidden")
-        .withArgs("/restricted-resource", publicUser.address);
+        .withArgs(publicUser.address, hre.ethers.zeroPadBytes("0x", 32));
     });
   });
 

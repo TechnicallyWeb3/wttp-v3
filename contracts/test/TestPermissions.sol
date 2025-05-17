@@ -20,27 +20,27 @@ contract TestPermissions is WTTPPermissionsV3 {
         return SITE_ADMIN_ROLE;
     }
 
-    function testValidRole(bytes32 _role) public validRole(_role) returns (bool) {
+    function testValidRole(bytes32 _role) public notAdminRole(_role) returns (bool) {
         emit Success();
         return true;
     }
 
     function isSuperAdmin(address _admin) public view returns (bool) {
-        return _isSuperAdmin(_admin);
+        return hasRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     function isSiteAdmin(address _admin) public view returns (bool) {
-        return _isSiteAdmin(_admin);
+        return hasRole(SITE_ADMIN_ROLE, _admin);
     }
     
-    function testSuperAdmin(address _admin) public onlySuperAdmin returns (bool) {
+    function testSuperAdmin(address _admin) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         emit Success();
-        return _isSuperAdmin(_admin);
+        return hasRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
-    function testSiteAdmin(address _admin) public onlySiteAdmin returns (bool) {
+    function testSiteAdmin(address _admin) public onlyRole(SITE_ADMIN_ROLE) returns (bool) {
         emit Success();
-        return _isSiteAdmin(_admin);
-    }         
+        return hasRole(SITE_ADMIN_ROLE, _admin);
+    }     
 
 }
