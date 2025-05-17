@@ -4,20 +4,35 @@ pragma solidity ^0.8.20;
 import "./WTTPStorage.sol";
 import "./WTTPPermissions.sol";
 /// @title WTTP Site Contract
-/// @notice Implements core WTTP protocol methods
-/// @dev Handles HTTP-like operations on the blockchain
+/// @notice Implements core WTTP protocol methods for HTTP-like operations on blockchain
+/// @dev Extends WTTPStorageV3 to provide web-like interactions with blockchain resources
+///      Implements methods similar to HTTP verbs (GET, PUT, DELETE, etc.)
 abstract contract WTTPSiteV3 is WTTPStorageV3 {
 
+    /// @notice Initializes the site contract with necessary dependencies
+    /// @dev Sets up DPR and default header, then passes to parent constructor
+    /// @param _dpr Address of the Data Point Registry contract
+    /// @param _defaultHeader Default header info to use for resources
+    /// @param _owner Address that will receive the DEFAULT_ADMIN_ROLE
     constructor(
         address _dpr, 
         HeaderInfo memory _defaultHeader,
         address _owner
     ) WTTPStorageV3(_owner, _dpr, _defaultHeader) {}
 
+    /// @notice Retrieves the resource admin role for a specific path
+    /// @dev Reads from the resource's header to get admin role identifier
+    /// @param _path Resource path to check
+    /// @return bytes32 The resource admin role identifier
     function _getResourceAdmin(string memory _path) internal view returns (bytes32) {   
         return _readHeader(_readMetadata(_path).header).resourceAdmin;
     }
 
+    /// @notice Checks if an account has admin rights for a specific resource
+    /// @dev Account has access if they are site admin, resource admin, or the resource allows public access
+    /// @param _path Resource path to check
+    /// @param _account Account address to verify
+    /// @return bool True if the account has admin rights
     function _isResourceAdmin(string memory _path, address _account) internal view returns (bool) {
         bytes32 _resourceAdmin = _getResourceAdmin(_path);
         return hasRole(SITE_ADMIN_ROLE, _account) || 
@@ -25,6 +40,9 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
             _resourceAdmin == bytes32(type(uint256).max); // indicates public access
     }
 
+    /// @notice Restricts function access to resource administrators
+    /// @dev Reverts with Forbidden error if caller lacks appropriate permissions
+    /// @param _path Resource path being accessed
     modifier onlyResourceAdmin(string memory _path) {
         if (!_isResourceAdmin(_path, msg.sender)) {
             revert Forbidden(msg.sender, _getResourceAdmin(_path));
@@ -33,6 +51,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     }
 
     /// @notice Checks WTTP version compatibility
+    /// @dev Compares provided version against expected WTTP_VERSION constant
     /// @param _wttpVersion Protocol version to check
     /// @return bool True if version is compatible
     function compatibleWTTPVersion(string memory _wttpVersion) internal pure returns (bool) {
@@ -42,12 +61,20 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         return false;
     }
 
+    /// @notice Updates the default header for the site
+    /// @dev Only site admins can modify the default header
+    /// @param _header New default header information
     function _updateDefaultHeader(
         HeaderInfo memory _header
     ) external virtual onlyRole(SITE_ADMIN_ROLE) {
         _setDefaultHeader(_header);
     }
     
+    /// @notice Determines if a method is allowed for a specific resource
+    /// @dev Considers method type, user role, and resource permissions
+    /// @param _path Resource path to check
+    /// @param _method Method type being requested
+    /// @return bool True if the method is allowed
     function _methodAllowed(string memory _path, Method _method) internal view returns (bool) {
         uint16 methodBit = uint16(1 << uint8(_method)); // Create a bitmask for the method
         bool writeMethod = 
@@ -67,6 +94,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         );
     }
 
+    /// @notice Internal implementation of OPTIONS method
+    /// @dev Checks protocol version and method permissions
+    /// @param optionsRequest Request details including path and protocol
+    /// @return optionsResponse Response with allowed methods or error code
     function _OPTIONS(
         RequestLine memory optionsRequest
     ) internal view returns (OPTIONSResponse memory optionsResponse) {
@@ -75,14 +106,14 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         uint16 _code = 500;
         Method _method = optionsRequest.method;
         if (!compatibleWTTPVersion(_protocol)) {
-            _code = 505;
+            _code = 505; // HTTP Version Not Supported
         } else if (!_methodAllowed(_path, _method)) {
-            _code = 405;
+            _code = 405; // Method Not Allowed
         } else if (_method == Method.OPTIONS) {
             optionsResponse.allow = _readHeader(
                 _readMetadata(_path).header
             ).methods;
-            _code = 204;
+            _code = 204; // No Content
         }
         optionsResponse.responseLine = ResponseLine({
             protocol: _protocol,
@@ -90,6 +121,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         });
     }
 
+    /// @notice Handles OPTIONS requests to check available methods
+    /// @dev External interface for _OPTIONS with method enforcement
+    /// @param optionsRequest Request details
+    /// @return optionsResponse Response with allowed methods info
     function OPTIONS(
         RequestLine memory optionsRequest
     ) external view returns (OPTIONSResponse memory optionsResponse) {
@@ -97,6 +132,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         optionsResponse = _OPTIONS(optionsRequest);
     }
 
+    /// @notice Internal implementation of HEAD method
+    /// @dev Retrieves metadata without content, handles caching and redirects
+    /// @param headRequest Request details including conditional headers
+    /// @return headResponse Response with metadata and status code
     function _HEAD(
         HEADRequest memory headRequest
     ) internal view returns (HEADResponse memory headResponse) {
@@ -111,21 +150,21 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
             uint16 _redirectCode = _headerInfo.redirect.code;
         
             if (_metadata.size == 0) {
-                _code = 404;
+                _code = 404; // Not Found
             } 
-            // 3xx codes
+            // 3xx codes - conditional responses
             else if (
                 _etag == headRequest.ifNoneMatch || 
                 headRequest.ifModifiedSince > _metadata.lastModified
             ) {
-                _code = 304;
+                _code = 304; // Not Modified
             }
             else if (_redirectCode != 0) {
-                _code = _redirectCode;
+                _code = _redirectCode; // Redirect
             }
             // 200 codes should be handled by the parent function
             else if (headRequest.requestLine.method == Method.HEAD) {
-                _code = 200;
+                _code = 200; // OK
             }
 
             _responseLine.code = _code;
@@ -138,9 +177,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         }
     }
 
-    /// @notice Handles HTTP HEAD requests
-    /// @param headRequest Request information
-    /// @return head Response with header information
+    /// @notice Handles HTTP HEAD requests for metadata
+    /// @dev External interface for _HEAD with method enforcement
+    /// @param headRequest Request information including conditional headers
+    /// @return head Response with header and metadata information
     function HEAD(
         HEADRequest memory headRequest
     )
@@ -150,6 +190,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         return _HEAD(headRequest);
     }
 
+    /// @notice Internal implementation of LOCATE method
+    /// @dev Extends HEAD to include data point addresses
+    /// @param locateRequest Request details
+    /// @return locateResponse Response with metadata and data point locations
     function _LOCATE(
         HEADRequest memory locateRequest
     ) internal view returns (LOCATEResponse memory locateResponse) {
@@ -157,7 +201,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         
         if (locateResponse.head.responseLine.code == 500) {
             locateResponse.dataPoints = _readResource(locateRequest.requestLine.path);
-            locateResponse.head.responseLine.code = 200;
+            locateResponse.head.responseLine.code = 200; // OK
         }
     }
 
@@ -174,6 +218,10 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         return _LOCATE(locateRequest);
     }
 
+    /// @notice Handles GET requests to retrieve resources
+    /// @dev Equivalent to LOCATE in this implementation (actual data retrieval happens off-chain)
+    /// @param getRequest Request information
+    /// @return locateResponse Response containing metadata and data point addresses
     function GET(
         HEADRequest memory getRequest
     ) external view returns (LOCATEResponse memory locateResponse) {
@@ -182,8 +230,8 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     }
 
     /// @notice Handles DEFINE requests to update resource headers
-    /// @dev Only accessible to resource administrators
-    /// @param defineRequest Request information
+    /// @dev Only accessible to resource administrators, creates header if needed
+    /// @param defineRequest Request information with new header data
     /// @return defineResponse Response containing updated header information
     function DEFINE(
         DEFINERequest memory defineRequest
@@ -212,7 +260,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 lastModified: 0,
                 header: _headerAddress
             }));
-            _headResponse.responseLine.code = 201;
+            _headResponse.responseLine.code = 201; // Created
         }
         defineResponse = DEFINEResponse({
             head: _headResponse,
@@ -223,7 +271,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     }
 
     /// @notice Handles DELETE requests to remove resources
-    /// @dev Only accessible to resource administrators
+    /// @dev Only accessible to resource administrators, checks resource mutability
     /// @param deleteRequest Request information
     /// @return deleteResponse Response confirming deletion
     function DELETE(
@@ -236,15 +284,15 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
             deleteResponse.responseLine.code == 500
         ) {
             _deleteResource(deleteRequest.requestLine.path);
-            deleteResponse.responseLine.code = 204;
+            deleteResponse.responseLine.code = 204; // No Content
         }
 
         emit DELETESuccess(msg.sender, deleteResponse);
     }
 
     /// @notice Handles PUT requests to create new resources
-    /// @dev Requires payment for storage costs
-    /// @param putRequest Request information
+    /// @dev Only accessible to resource administrators, transfers any excess payment back
+    /// @param putRequest Request information including content data
     /// @return putResponse Response containing created resource information
     function PUT(
         PUTRequest memory putRequest
@@ -264,13 +312,13 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 encoding: putRequest.encoding,
                 language: putRequest.language,
                 location: putRequest.location,
-                size: 0, // calculated
-                version: 0, // calculated
-                lastModified: 0, // calculated
+                size: 0, // calculated during upload
+                version: 0, // calculated during upload
+                lastModified: 0, // calculated during upload
                 header: _readMetadata(_path).header
             }));
             _uploadResource(_path, putRequest.data);
-            _headResponse.responseLine.code = 201;
+            _headResponse.responseLine.code = 201; // Created
         }
         putResponse.head = _headResponse;
 
@@ -282,8 +330,8 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
     }
 
     /// @notice Handles PATCH requests to update existing resources
-    /// @dev Requires payment for storage costs
-    /// @param patchRequest Request information
+    /// @dev Only accessible to resource administrators, checks resource mutability
+    /// @param patchRequest Request information including update data
     /// @return patchResponse Response containing updated resource information
     function PATCH(
         PATCHRequest memory patchRequest
@@ -300,7 +348,7 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 _headRequest.requestLine.path, 
                 patchRequest.data
             );
-            _headResponse.responseLine.code = 204;
+            _headResponse.responseLine.code = 204; // No Content
         }
 
         patchResponse.head = _headResponse;
@@ -308,7 +356,8 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         emit PATCHSuccess(msg.sender, patchResponse);
     }
 
-    // Define events
+    // ========== Events ==========
+    
     /// @notice Emitted when a PATCH request succeeds
     /// @param publisher Address of content publisher
     /// @param patchResponse Response details

@@ -6,24 +6,27 @@ import "./lib/WTTPTypes.sol";
 
 /// @title WTTP Permissions Contract
 /// @notice Manages role-based access control for the WTTP protocol
-/// @dev Extends OpenZeppelin's AccessControl with site-specific roles
+/// @dev Extends OpenZeppelin's AccessControl with site-specific roles and custom permission logic
 abstract contract WTTPPermissionsV3 is AccessControl {
 
     /// @notice Role identifier for site administrators
+    /// @dev Calculated via keccak256 during construction. Site admins have elevated privileges but below the DEFAULT_ADMIN_ROLE
     bytes32 internal SITE_ADMIN_ROLE;
-    // /// @notice Role identifier for the public
-    // /// @dev This role works in reverse, a user can be assigned as a blacklisted role
-    // /// @dev This means if you have the public role, hasRole(PUBLIC_ROLE, account) will return false
-    // bytes32 internal constant PUBLIC_ROLE = keccak256("PUBLIC_ROLE");
 
     /// @notice Sets up initial roles and permissions
-    /// @param _owner Address of the contract owner
+    /// @dev Creates the SITE_ADMIN_ROLE and establishes DEFAULT_ADMIN_ROLE as its admin
+    /// @param _owner Address of the contract owner who receives the DEFAULT_ADMIN_ROLE
     constructor(address _owner) {
         SITE_ADMIN_ROLE = keccak256("SITE_ADMIN_ROLE");
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
         _setRoleAdmin(SITE_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
     }
 
+    /// @notice Check if an account has a specific role
+    /// @dev Overrides the standard AccessControl implementation to grant DEFAULT_ADMIN_ROLE holders access to all roles
+    /// @param role The role identifier to check
+    /// @param account The address to check for the role
+    /// @return bool True if the account has the role or is a DEFAULT_ADMIN_ROLE holder
     function hasRole(bytes32 role, address account) public view override virtual returns (bool) {
         if (super.hasRole(DEFAULT_ADMIN_ROLE, account)) {
             return true;
@@ -31,6 +34,9 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         return super.hasRole(role, account);
     }
 
+    /// @notice Modifier to prevent certain actions on admin roles
+    /// @dev Used to prevent modification of privileged roles
+    /// @param role The role identifier to check
     modifier notAdminRole(bytes32 role) {
         if(
             role == SITE_ADMIN_ROLE || 
@@ -41,74 +47,20 @@ abstract contract WTTPPermissionsV3 is AccessControl {
         }
         _;
     }
-
-    // function _isSuperAdmin(address account) public virtual view returns (bool) {
-    //     return hasRole(DEFAULT_ADMIN_ROLE, account);
-    // }
-
-    // modifier onlySuperAdmin() {
-    //     if(!_isSuperAdmin(msg.sender)) {
-    //         revert Forbidden(msg.sender, DEFAULT_ADMIN_ROLE);
-    //     }
-    //     _;
-    // }
-
-    // function _isSiteAdmin(address account) public virtual view returns (bool) {
-    //     return hasRole(SITE_ADMIN_ROLE, account);
-    // }
-
-    // modifier onlySiteAdmin() {
-    //     if(!_isSiteAdmin(msg.sender)) {
-    //         revert Forbidden(msg.sender, SITE_ADMIN_ROLE);
-    //     }
-    //     _;
-    // }
-
-
-    // function _isPublic(address account) internal view returns (bool) {
-    //     return !hasRole(PUBLIC_ROLE, account);
-    // }
-
-    // modifier onlyPublic() {
-    //     if(!_isPublic(msg.sender)) {
-    //         revert Blacklisted(msg.sender);
-    //     }
-    //     _; 
-    // }
        
-    // Allows site admins to create resource-specific admin roles
-    // modifier not needed since only site admins can use grantRole
+    /// @notice Creates a new resource-specific admin role
+    /// @dev Sets the SITE_ADMIN_ROLE as the admin of the new role, preventing creation of privileged roles
+    /// @param _role The new role identifier to create
     function createResourceRole(bytes32 _role) external onlyRole(SITE_ADMIN_ROLE) notAdminRole(_role) {
         _setRoleAdmin(_role, SITE_ADMIN_ROLE);
         emit ResourceRoleCreated(_role);
     }
 
-    function grantRole(bytes32 role, address account) public override {
-        if(role == DEFAULT_ADMIN_ROLE) {
-            revert InvalidRole(role);
-        }
-        super.grantRole(role, account);
-        // if(role == SITE_ADMIN_ROLE) {
-        //     emit AdminRoleGranted(account);
-        // // } else if(role == PUBLIC_ROLE) {
-        // //     emit AccountBlacklisted(account);
-        // } else {
-        //     emit ResourceRoleGranted(role, account);
-        // }
-    }
-
-    // /// @notice Transfer ownership to a new address
-    // /// @dev Only callable by a super admin
-    // /// @param _newOwner Address of the new owner
-    // function transferOwnership(address _newOwner) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    //     // Grant the new owner super admin role
-    //     _grantRole(DEFAULT_ADMIN_ROLE, _newOwner);
-    //     emit OwnershipTransferred(msg.sender, _newOwner);
-    // }
-
+    /// @notice Changes the SITE_ADMIN_ROLE identifier
+    /// @dev Allows wiping all current site admin permissions by changing the role hash
+    /// @param _newSiteAdmin The new role identifier to use for site administrators
     function changeSiteAdmin(bytes32 _newSiteAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit SiteAdminChanged(SITE_ADMIN_ROLE, _newSiteAdmin);
         SITE_ADMIN_ROLE = _newSiteAdmin;
     }
-
 }

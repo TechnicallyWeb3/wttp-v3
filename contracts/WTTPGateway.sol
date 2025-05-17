@@ -5,8 +5,17 @@ import "./lib/WTTPTypes.sol";
 import "./interfaces/IWTTPSiteV3.sol";
 import "./interfaces/IDataPointStorageV2.sol";
 
+/// @title WTTP Gateway Contract
+/// @notice Provides a unified interface for accessing WTTP sites with extended functionality
+/// @dev Acts as an intermediary layer between clients and WTTP sites, adding range handling capabilities
+///      and standardizing response formats across different site implementations
 contract WTTPGatewayV3 {
     
+    /// @notice Forwards OPTIONS requests to a specified site
+    /// @dev Simply passes the request through without modification
+    /// @param _site Address of the target WTTP site contract
+    /// @param _optionsRequest The OPTIONS request parameters
+    /// @return _optionsResponse The response from the site
     function OPTIONS(
         address _site, 
         RequestLine memory _optionsRequest
@@ -14,6 +23,11 @@ contract WTTPGatewayV3 {
         return IWTTPSiteV3(_site).OPTIONS(_optionsRequest);
     }
 
+    /// @notice Handles GET requests with byte range support
+    /// @dev First locates the resource, then processes any byte range request
+    /// @param _site Address of the target WTTP site contract
+    /// @param _getRequest The GET request parameters including any byte range
+    /// @return _getResponse Response with either full data or the requested byte range
     function GET(
         address _site, 
         GETRequest memory _getRequest
@@ -46,10 +60,10 @@ contract WTTPGatewayV3 {
             
             _getResponse.head = locateResponse.head;
             _getResponse.data = rangeResp.data;
-            _getResponse.head.responseLine.code = 206;
+            _getResponse.head.responseLine.code = 206; // Partial Content
         } else {
             _getResponse.head = locateResponse.head;
-            _getResponse.head.responseLine.code = 200;
+            _getResponse.head.responseLine.code = 200; // OK
             
             // Get full data
             IDataPointStorageV2 dps = IDataPointStorageV2(IWTTPSiteV3(_site).DPS());
@@ -57,6 +71,7 @@ contract WTTPGatewayV3 {
             bytes memory fullData = new bytes(totalSize);
             uint256 offset;
             
+            // Assemble complete data from all data points
             for (uint256 i; i < locateResponse.dataPoints.length; i++) {
                 bytes memory dpData = dps.readDataPoint(locateResponse.dataPoints[i]);
                 for (uint256 j; j < dpData.length; j++) {
@@ -70,6 +85,11 @@ contract WTTPGatewayV3 {
         return _getResponse;
     }
 
+    /// @notice Forwards HEAD requests to a specified site
+    /// @dev Simply passes the request through without modification
+    /// @param _site Address of the target WTTP site contract
+    /// @param _headRequest The HEAD request parameters
+    /// @return _headResponse The response from the site
     function HEAD(
         address _site, 
         HEADRequest memory _headRequest
@@ -77,6 +97,11 @@ contract WTTPGatewayV3 {
         return IWTTPSiteV3(_site).HEAD(_headRequest);
     }
 
+    /// @notice Handles LOCATE requests with data point range support
+    /// @dev First locates all data points, then processes any range request
+    /// @param _site Address of the target WTTP site contract
+    /// @param _locateRequest The LOCATE request parameters including any chunk range
+    /// @return _locateResponse Response with either all data points or the requested range
     function LOCATE(
         address _site, 
         LOCATERequest memory _locateRequest
@@ -107,27 +132,32 @@ contract WTTPGatewayV3 {
             );
             
             _locateResponse.dataPoints = rangeResp.dataPoints;
-            _locateResponse.head.responseLine.code = 206;
+            _locateResponse.head.responseLine.code = 206; // Partial Content
         } else {
-            _locateResponse.head.responseLine.code = 200;
+            _locateResponse.head.responseLine.code = 200; // OK
         }
         
         return _locateResponse;
     }
     
+    /// @notice Defines types of ranges that can be processed
+    /// @dev Used to determine how to handle range processing logic
     enum RangeType {
-        BYTES,
-        DATA_POINTS
+        BYTES,        // Range in bytes (for content)
+        DATA_POINTS   // Range in data points (for chunks)
     }
 
+    /// @notice Structure for ranged response data
+    /// @dev Used to return range processing results with appropriate metadata
     struct RangedResponse {
-        bytes32[] dataPoints;
-        bytes data;
-        RangeType rangeType;
-        bool isPartialRange;
+        bytes32[] dataPoints;   // Array of data point addresses
+        bytes data;             // Assembled byte data for byte ranges
+        RangeType rangeType;    // Type of range processed
+        bool isPartialRange;    // Whether this is a partial or full range
     }
     
     /// @notice Checks if a range represents the full data
+    /// @dev A range is full if it starts at 0 and ends at length or 0 (0 end means "to the end")
     /// @param range The range to check
     /// @param length The total length of the data
     /// @return True if the range covers the full data
@@ -136,6 +166,7 @@ contract WTTPGatewayV3 {
     }
     
     /// @notice Resolves a data point range to absolute indices
+    /// @dev Handles negative indices (counting from end) and range validation
     /// @param range The range to resolve
     /// @param totalLength The total length of the data points
     /// @return startIdx The resolved start index
@@ -179,6 +210,7 @@ contract WTTPGatewayV3 {
     }
     
     /// @notice Resolves a byte range to absolute indices
+    /// @dev Calculates total size across data points and handles range validation
     /// @param _site The site address
     /// @param dataPoints The data points
     /// @param range The range to resolve
@@ -230,12 +262,13 @@ contract WTTPGatewayV3 {
     }
     
     /// @notice Processes chunk range requests using resolved indices
+    /// @dev Handles both data point ranges and byte ranges with different logic
     /// @param _site The site address
     /// @param dataPoints The data points to process
     /// @param startIdx The resolved start index
     /// @param endIdx The resolved end index
     /// @param rangeType The type of range
-    /// @return rangeResponse The modified response with selected chunks
+    /// @return rangeResponse The modified response with selected chunks or bytes
     function _processRange(
         address _site,
         bytes32[] memory dataPoints,
@@ -275,10 +308,10 @@ contract WTTPGatewayV3 {
             uint256 startDP = 0;
             uint256 byteOffset = 0;
             uint256 runningSize = 0;
-            IDataPointStorageV2 dps = IWTTPSiteV3(_site).DPS();
+            IDataPointStorageV2 dps = IDataPointStorageV2(IWTTPSiteV3(_site).DPS());
             
+            // Locate the data point containing the start byte
             for (uint256 i = 0; i < dataPoints.length; i++) {
-
                 uint256 dpSize = dps.dataPointSize(dataPoints[i]);
 
                 if (runningSize + dpSize > startIdx) {
@@ -309,5 +342,4 @@ contract WTTPGatewayV3 {
         
         return rangeResponse;
     }
-    
 }
