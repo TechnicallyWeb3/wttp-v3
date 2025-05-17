@@ -25,12 +25,19 @@ const WTTPSiteModule = buildModule("WTTPSiteModule", (m) => {
   const dprAddress = m.getParameter("dprAddress", "");
   
   // Deploy the DataPointStorage if not provided
-  const dataPointStorage = m.contract("DataPointStorage");
+  const dataPointStorage = m.contract("DataPointStorageV2");
+  
+  // Set royalty rate (0.01% by default)
+  const royaltyRate = m.getParameter("royaltyRate", ethers.parseEther("0.0001"));
   
   // Deploy the DataPointRegistry if not provided
   const dataPointRegistry = dprAddress 
-    ? m.useContract("DataPointRegistry", dprAddress)
-    : m.contract("DataPointRegistry", [dataPointStorage]);
+    ? m.useContract("DataPointRegistryV2", dprAddress)
+    : m.contract("DataPointRegistryV2", [
+        owner || m.getAccount(0),
+        dataPointStorage,
+        royaltyRate
+      ]);
   
   // Deploy the WTTP site
   const wtppSite = m.contract("WTTPSiteImpl", [

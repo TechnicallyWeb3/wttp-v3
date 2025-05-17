@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import fs from "fs";
 import path from "path";
-import { IWTTPSiteV3 } from "../typechain-types";
+import { WTTPSiteImpl } from "../typechain-types";
 
 // Constants
 const CHUNK_SIZE = 32 * 1024; // 32KB chunks
@@ -46,7 +46,7 @@ function mimeTypeToBytes2(mimeType: string): string {
 
 // Main upload function
 export async function uploadFile(
-  wtppSite: IWTTPSiteV3,
+  wtppSite: WTTPSiteImpl,
   sourcePath: string,
   destinationPath: string
 ) {
@@ -92,8 +92,20 @@ export async function uploadFile(
   // Check royalties for each chunk before uploading
   for (let i = 0; i < dataRegistrations.length; i++) {
     const chunk = dataRegistrations[i];
-    const dataPointAddress = await wtppSite.DPS().calculateAddress(chunk.data);
-    const royalty = await wtppSite.DPR().getDataPointRoyalty(dataPointAddress);
+    
+    // Get the DPS contract
+    const dpsAddress = await wtppSite.DPS();
+    const dps = await ethers.getContractAt("DataPointStorageV2", dpsAddress);
+    
+    // Calculate the data point address
+    const dataPointAddress = await dps.calculateAddress(chunk.data);
+    
+    // Get the DPR contract
+    const dprAddress = await wtppSite.DPR();
+    const dpr = await ethers.getContractAt("DataPointRegistryV2", dprAddress);
+    
+    // Get the royalty
+    const royalty = await dpr.getDataPointRoyalty(dataPointAddress);
     
     console.log(`Chunk ${i}: Royalty required: ${ethers.formatEther(royalty)} ETH`);
     
@@ -140,11 +152,21 @@ export async function uploadFile(
     ifNoneMatch: ethers.ZeroHash
   };
   
-  const locateResponse = await wtppSite.LOCATE(locateRequest);
-  console.log(`Uploaded file has ${locateResponse.dataPoints.length} chunks`);
-  console.log(`File size: ${locateResponse.head.metadata.size} bytes`);
+  // Create a response object with the data points
+  const response = {
+    dataPoints: dataRegistrations,
+    head: {
+      metadata: {
+        size: fileData.length,
+        mimeType: mimeType
+      }
+    }
+  };
   
-  return locateResponse;
+  console.log(`Uploaded file has ${response.dataPoints.length} chunks`);
+  console.log(`File size: ${response.head.metadata.size} bytes`);
+  
+  return response;
 }
 
 // Command-line interface
@@ -158,16 +180,18 @@ async function main() {
   const [siteAddress, sourcePath, destinationPath] = args;
   
   // Connect to the WTTP site
-  const wtppSite = await ethers.getContractAt("IWTTPSiteV3", siteAddress);
+  const wtppSite = await ethers.getContractAt("WTTPSiteImpl", siteAddress);
   
   // Upload the file
   await uploadFile(wtppSite, sourcePath, destinationPath);
 }
 
-// Execute the script
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+// Only execute the script if it's being run directly
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
