@@ -1,6 +1,6 @@
-# WTTP File Upload Scripts
+# WTTP Upload Scripts
 
-This repository contains Hardhat Ignition scripts to deploy a WTTP site and upload files to it.
+This repository contains Hardhat Ignition scripts to deploy a WTTP site and upload files and directories to it.
 
 ## Deployment
 
@@ -23,23 +23,35 @@ You can also provide parameters:
 npx hardhat ignition deploy ignition/modules/WTTPSite.ts --parameters '{"owner": "0x123...abc", "dprAddress": "0x456...def"}'
 ```
 
-## Uploading Files
+## Uploading Files and Directories
 
-Once you have deployed a WTTP site, you can upload files to it using the provided task:
+Once you have deployed a WTTP site, you can upload files or directories to it using the provided task:
 
 ```bash
-npx hardhat upload --site <site-address> --source <source-file-path> --destination <destination-path>
+npx hardhat upload --site <site-address> --source <source-path> --destination <destination-path>
 ```
 
-For example:
+The task automatically detects whether the source path is a file or a directory and uses the appropriate upload method.
+
+### Examples
+
+Uploading a file:
 
 ```bash
 npx hardhat upload --site 0x123...abc --source ./myfile.txt --destination /myfile.txt
 ```
 
-### How It Works
+Uploading a directory:
 
-The upload script:
+```bash
+npx hardhat upload --site 0x123...abc --source ./my-website --destination /my-website/
+```
+
+## How It Works
+
+### File Upload
+
+The file upload script:
 
 1. Reads the source file
 2. Chunks the data into 32KB chunks
@@ -47,6 +59,47 @@ The upload script:
 4. Checks royalties for each chunk before uploading
 5. Uses PUT for new resources or PATCH for existing resources
 6. Verifies the upload by checking the resource metadata
+
+### Directory Upload
+
+The directory upload script:
+
+1. Scans the source directory recursively to identify all files and subdirectories
+2. Creates a directory representation with:
+   - HTTP status code 300 (Multiple Choices)
+   - Location header pointing to "./index.html" (or appropriate fallback)
+   - No metadata (mimetype, charset, encoding, language all set to 0x0000)
+   - JSON payload containing a directory listing
+3. Uploads each file in the directory using the file upload script
+4. Creates subdirectories with their own metadata and redirect headers
+
+### Directory Structure Representation
+
+Directories are represented with a special JSON structure that lists all files and subdirectories:
+
+```json
+{
+  "directory": {
+    "index.html": {
+      "mimeType": "text/html",
+      "charset": "utf-8",
+      "encoding": "identity",
+      "language": "en-US"
+    },
+    "styles.css": {
+      "mimeType": "text/css",
+      "charset": "utf-8",
+      "encoding": "identity",
+      "language": "en-US"
+    },
+    "images": {
+      "directory": true
+    }
+  }
+}
+```
+
+This structure allows clients to discover the contents of a directory and select the most appropriate files based on their preferences.
 
 ### File Chunking
 
@@ -69,3 +122,5 @@ The scripts handle:
 - Proper chunking of large files
 - Royalty checks before uploading
 - Appropriate HTTP-like methods (PUT/PATCH) based on resource existence
+- Directory structure representation with redirect headers
+- Recursive processing of nested directories
