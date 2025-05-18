@@ -1,11 +1,6 @@
 // Import ethers from the hardhat runtime environment when running
 // but allow direct import from ethers package when imported
 
-// WTTPSiteModule#DataPointStorageV2 - 0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E
-// WTTPSiteModule#WTTPGatewayV3 - 0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690
-// WTTPSiteModule#DataPointRegistryV2 - 0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB
-// WTTPSiteModule#Web3Site - 0x9E545E3C0baAB3E08CdfD552C960A1050f373042
-
 import type { WTTPGatewayV3 } from "../typechain-types";
 import { ethers } from "hardhat";
 import { HEADResponseStructOutput } from "../typechain-types/contracts/Web3Site";
