@@ -97,6 +97,8 @@ export async function main(
   // Fetch the resource
   const response = await fetchResource(gateway, siteAddress, path, options);
   let headData;
+  // For GET requests, return the data as well
+  let content: string | null = null;
   
   // If it's a HEAD request, just return the metadata
   if (options.headRequest) {
@@ -119,9 +121,6 @@ export async function main(
       }
     }
   }
-  
-  // For GET requests, return the data as well
-  let content: string | null = null;
 
   
   return {

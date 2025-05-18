@@ -20,6 +20,7 @@ function chunkData(data: Buffer, chunkSize: number): Buffer[] {
 export function getMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   const mimeTypes: Record<string, string> = {
+    "/": "directory",
     ".html": "text/html",
     ".css": "text/css", 
     ".js": "application/javascript",
@@ -48,6 +49,7 @@ export function getMimeType(filePath: string): string {
 export function mimeTypeToBytes2(mimeType: string): string {
   // Map MIME types to 2-byte identifiers using 1-letter codes
   const mimeTypeMap: Record<string, string> = {
+    'directory': '0x0001', // dir
     'text/html': '0x7468', // th
     'text/javascript': '0x616a', // aj (defaults to application/javascript)
     'text/css': '0x7463', // tc 
@@ -75,6 +77,7 @@ export function mimeTypeToBytes2(mimeType: string): string {
 export function bytes2ToMimeType(bytes2Value: string): string {
   // Map 2-byte identifiers back to MIME types
   const bytes2ToMimeMap: Record<string, string> = {
+    '0x0001': 'directory',                // dir
     '0x7468': 'text/html',                // th
     '0x616a': 'application/javascript',   // aj
     '0x7463': 'text/css',                 // tc
