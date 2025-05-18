@@ -8,6 +8,7 @@
 
 import type { WTTPGatewayV3 } from "../typechain-types";
 import { ethers } from "hardhat";
+import { HEADResponseStructOutput } from "../typechain-types/contracts/Web3Site";
 
 /**
  * Fetches a resource from a WTTP site via the WTTPGateway
@@ -100,34 +101,39 @@ export async function main(
   
   // Fetch the resource
   const response = await fetchResource(gateway, siteAddress, path, options);
+  let headData;
   
   // If it's a HEAD request, just return the metadata
   if (options.headRequest) {
-    return {
-      status: response.responseLine.code,
-      metadata: response.metadata,
-      etag: response.etag
-    };
+    headData = response as HEADResponseStructOutput;
+    // return {
+    //   status: response.responseLine.code,
+    //   metadata: response.metadata,
+    //   etag: response.etag
+    // };
+  } else {
+    headData = response.head;
+    if (headData.responseLine.code === 200n || headData.responseLine.code === 206n) {
+        // Convert the response data to a string if it's text
+      const mimeType = headData.metadata.mimeType;
+        
+      if (isText(mimeType)) {
+        content = ethers.toUtf8String(response.data);
+      } else {
+        content = `<Binary data: ${response.data.length} bytes>`;
+      }
+    }
   }
   
   // For GET requests, return the data as well
   let content: string | null = null;
-  if (response.head.responseLine.code === 200 || response.head.responseLine.code === 206) {
-    // Convert the response data to a string if it's text
-    const mimeType = response.head.metadata.mimeType;
-    
-    if (isText(mimeType)) {
-      content = ethers.toUtf8String(response.data);
-    } else {
-      content = `<Binary data: ${response.data.length} bytes>`;
-    }
-  }
+
   
   return {
-    status: response.head.responseLine.code,
-    metadata: response.head.metadata,
-    etag: response.head.etag,
+    status: headData.responseLine.code,
+    metadata: headData.metadata,
+    etag: headData.etag,
     content,
-    rawData: response.data
+    rawData: response.data || null
   };
 }

@@ -181,8 +181,8 @@ export async function uploadFile(
       head: headRequest,
       mimeType: mimeTypeBytes2,
       charset: "0x7556", // u8 = utf-8
-      encoding: "0x6865", // id = identity
-      language: "0x6675", // eu = english-US
+      encoding: "0x6964", // id = identity
+      language: "0x6575", // eu = english-US
       data: [dataRegistrations[0]]
     };
     
@@ -230,7 +230,7 @@ export async function uploadFile(
 async function main() {
   const args = process.argv.slice(2);
   if (args.length < 3) {
-    console.error("Usage: npx hardhat run scripts/uploadFile.ts <site-address> <source-path> <destination-path>");
+    console.error("Usage: npx hardhat upload --site <site-address> --source <source-path> --destination <destination-path> --network <network>");
     process.exit(1);
   }
   
