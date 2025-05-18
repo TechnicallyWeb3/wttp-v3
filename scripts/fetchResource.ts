@@ -32,7 +32,7 @@ export async function fetchResource(
   const requestLine = {
     path: path,
     protocol: "WTTP/3.0",
-    method: headRequest ? 0 : 1 // HEAD = 0, GET = 1
+    method: headRequest ? 1 : 0 // HEAD = 1, GET = 0
   };
 
   // Create the head request

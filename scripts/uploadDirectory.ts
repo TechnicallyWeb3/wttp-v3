@@ -173,31 +173,46 @@ export async function uploadDirectory(
   const dataPointAddress = await dps.calculateAddress(dataRegistrations[0].data);
   royalty[0] = await dpr.getDataPointRoyalty(dataPointAddress);
   
-  // Use PUT to create the directory resource with custom headers
-  console.log(`Creating directory ${destinationPath}...`);
+  // Check if the directory already exists
+  if (resourceExists) {
+    console.log(`Directory ${destinationPath} already exists, updating...`);
+    
+    // Use PATCH to update the existing directory
+    const patchRequest = {
+      head: headRequest,
+      data: [dataRegistrations[0]]
+    };
+    
+    const tx = await wtppSite.PATCH(patchRequest, { value: royalty[0] });
+    await tx.wait();
+    console.log("Directory updated successfully!");
+  } else {
+    // Use PUT to create the directory resource with custom headers
+    console.log(`Creating directory ${destinationPath}...`);
 
-  const putRequest = {
-    head: headRequest,
-    mimeType: "0x0001", // indicates directory
-    charset: "0x0000", // No metadata
-    encoding: "0x0000", // No metadata
-    language: "0x0000", // No metadata
-    data: [dataRegistrations[0]],
-    headers: [
-      {
-        name: "Status",
-        value: "300" // Multiple Choices
-      },
-      {
-        name: "Location",
-        value: indexLocation
-      }
-    ]
-  };
-  
-  const tx = await wtppSite.PUT(putRequest, { value: royalty[0] });
-  await tx.wait();
-  console.log("Directory created successfully!");
+    const putRequest = {
+      head: headRequest,
+      mimeType: "0x0001", // indicates directory
+      charset: "0x0000", // No metadata
+      encoding: "0x0000", // No metadata
+      language: "0x0000", // No metadata
+      data: [dataRegistrations[0]],
+      headers: [
+        {
+          name: "Status",
+          value: "300" // Multiple Choices
+        },
+        {
+          name: "Location",
+          value: indexLocation
+        }
+      ]
+    };
+    
+    const tx = await wtppSite.PUT(putRequest, { value: royalty[0] });
+    await tx.wait();
+    console.log("Directory created successfully!");
+  }
   
   // Upload remaining chunks if any
   for (let i = 1; i < dataRegistrations.length; i++) {
@@ -286,30 +301,47 @@ export async function uploadDirectory(
       ifNoneMatch: ethers.ZeroHash
     };
     
-    // Use PUT to create the subdirectory resource with custom headers
-    console.log(`Creating subdirectory ${destinationDirPath} with redirect header...`);
-    const putRequest = {
-      head: subDirHeadRequest,
-      mimeType: "0x0000", // No metadata
-      charset: "0x0000", // No metadata
-      encoding: "0x0000", // No metadata
-      language: "0x0000", // No metadata
-      data: [dataRegistrations[0]],
-      headers: [
-        {
-          name: "Status",
-          value: "300" // Multiple Choices
-        },
-        {
-          name: "Location",
-          value: subDirIndexLocation
-        }
-      ]
-    };
+    // Check if subdirectory already exists
+    const subDirHeadResponse = await wtppSite.HEAD(subDirHeadRequest);
+    const subDirExists = subDirHeadResponse.responseLine.code !== 404n;
     
-    const tx = await wtppSite.PUT(putRequest, { value: royalty[0] });
-    await tx.wait();
-    console.log(`Subdirectory ${destinationDirPath} created successfully!`);
+    if (subDirExists) {
+      // Use PATCH to update the existing subdirectory
+      console.log(`Subdirectory ${destinationDirPath} already exists, updating...`);
+      const patchRequest = {
+        head: subDirHeadRequest,
+        data: [dataRegistrations[0]]
+      };
+      
+      const tx = await wtppSite.PATCH(patchRequest, { value: royalty[0] });
+      await tx.wait();
+      console.log(`Subdirectory ${destinationDirPath} updated successfully!`);
+    } else {
+      // Use PUT to create the subdirectory resource with custom headers
+      console.log(`Creating subdirectory ${destinationDirPath} with redirect header...`);
+      const putRequest = {
+        head: subDirHeadRequest,
+        mimeType: "0x0001", // Directory mime type
+        charset: "0x0000", // No metadata
+        encoding: "0x0000", // No metadata
+        language: "0x0000", // No metadata
+        data: [dataRegistrations[0]],
+        headers: [
+          {
+            name: "Status",
+            value: "300" // Multiple Choices
+          },
+          {
+            name: "Location",
+            value: subDirIndexLocation
+          }
+        ]
+      };
+    
+      const tx = await wtppSite.PUT(putRequest, { value: royalty[0] });
+      await tx.wait();
+      console.log(`Subdirectory ${destinationDirPath} created successfully!`);
+    }
     
     // Upload remaining chunks if any
     for (let i = 1; i < dataRegistrations.length; i++) {
