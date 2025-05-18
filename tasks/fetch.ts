@@ -41,14 +41,17 @@ task("fetch", "Fetch a resource from a WTTP site via the WTTPGateway")
 
     console.log("\n=== WTTP Response ===");
     let headData = undefined;
+    let mimeType = undefined;
     if (head) {
       headData = response;
+      mimeType = headData.metadata.mimeType;
       console.log("\n=== HEAD Response ==="); 
     } else {
       headData = response.head;
+      mimeType = headData.metadata.mimeType;
       console.log("\n=== GET Response ===");
       console.log("\n=== Content ===");
-      if (isText(response.data)) {
+      if (isText(mimeType)) {
         console.log(`Data: ${hre.ethers.toUtf8String(response.data)}`);
       } else {
         console.log(`Data: ${response.data.length - 2} bytes`); // remove the 0x prefix
@@ -58,7 +61,7 @@ task("fetch", "Fetch a resource from a WTTP site via the WTTPGateway")
 
     console.log(`ETag: ${headData.etag}`);
     console.log(`Last Modified: ${new Date(Number(headData.metadata.lastModified) * 1000).toISOString()}`);
-    console.log(`Content-Type: ${bytes2ToMimeType(headData.metadata.mimeType)}`);
+    console.log(`Content-Type: ${bytes2ToMimeType(mimeType)}`);
     console.log(`Charset: ${headData.metadata.charset}`);
     console.log(`Encoding: ${headData.metadata.encoding}`);
     console.log(`Language: ${headData.metadata.language}`);
