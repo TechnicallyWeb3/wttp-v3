@@ -1,5 +1,5 @@
 import { task } from "hardhat/config";
-import { main as fetchResourceMain } from "../scripts/fetchResource";
+import { WTTPGatewayV3 } from "../typechain-types";
 
 task("fetch", "Fetch a resource from a WTTP site via the WTTPGateway")
   .addParam("wttp", "The address of the WTTPGateway")
@@ -10,22 +10,25 @@ task("fetch", "Fetch a resource from a WTTP site via the WTTPGateway")
   .addOptionalParam("ifNoneMatch", "ETag value for If-None-Match header")
   .addFlag("head", "Perform a HEAD request instead of GET")
   .setAction(async (taskArgs, hre) => {
+
+    const { fetchResource, isText } = require("../scripts/fetchResource");
+    const { bytes2ToMimeType } = require("../scripts/uploadFile");
     const { wttp, site, path, range, ifModifiedSince, ifNoneMatch, head } = taskArgs;
+
+    const gateway: WTTPGatewayV3 = await hre.ethers.getContractAt("WTTPGatewayV3", wttp);
     
     // Parse range if provided
     let rangeOption = undefined;
     if (range) {
-      const [start, end] = range.split("-").map(n => parseInt(n.trim()));
+      const [start, end] = range.split("-").map((n: string) => parseInt(n.trim()));
       rangeOption = { start, end };
     }
     
     // Parse ifModifiedSince if provided
-    const ifModifiedSinceOption = ifModifiedSince ? parseInt(ifModifiedSince) : undefined;
-    
+    const ifModifiedSinceOption = ifModifiedSince ? parseInt(ifModifiedSince) : undefined;    
     // Fetch the resource
-    const response = await fetchResourceMain(
-      hre,
-      wttp,
+    const response = await fetchResource(
+      gateway,
       site,
       path,
       {
@@ -35,25 +38,32 @@ task("fetch", "Fetch a resource from a WTTP site via the WTTPGateway")
         headRequest: head
       }
     );
-    
-    // Format and display the response
+
     console.log("\n=== WTTP Response ===");
-    console.log(`Status: ${response.status}`);
-    
-    if (response.metadata) {
-      console.log("\n=== Metadata ===");
-      console.log(`MIME Type: ${hre.ethers.toUtf8String(response.metadata.mimeType)}`);
-      console.log(`Charset: ${hre.ethers.toUtf8String(response.metadata.charset)}`);
-      console.log(`Encoding: ${hre.ethers.toUtf8String(response.metadata.encoding)}`);
-      console.log(`Language: ${hre.ethers.toUtf8String(response.metadata.language)}`);
-      console.log(`Size: ${response.metadata.size} bytes`);
-      console.log(`Version: ${response.metadata.version}`);
-      console.log(`Last Modified: ${new Date(Number(response.metadata.lastModified) * 1000).toISOString()}`);
+    let headData = undefined;
+    if (head) {
+      headData = response;
+      console.log("\n=== HEAD Response ==="); 
+    } else {
+      headData = response.head;
+      console.log("\n=== GET Response ===");
+      console.log("\n=== Content ===");
+      if (isText(response.data)) {
+        console.log(`Data: ${hre.ethers.toUtf8String(response.data)}`);
+      } else {
+        console.log(`Data: ${response.data.length - 2} bytes`); // remove the 0x prefix
+      }
+      console.log("================\n");
     }
-    
-    if (response.etag) {
-      console.log(`ETag: ${response.etag}`);
-    }
+
+    console.log(`ETag: ${headData.etag}`);
+    console.log(`Last Modified: ${new Date(Number(headData.metadata.lastModified) * 1000).toISOString()}`);
+    console.log(`Content-Type: ${bytes2ToMimeType(headData.metadata.mimeType)}`);
+    console.log(`Charset: ${headData.metadata.charset}`);
+    console.log(`Encoding: ${headData.metadata.encoding}`);
+    console.log(`Language: ${headData.metadata.language}`);
+    console.log(`Size: ${headData.metadata.size} bytes`);
+    console.log(`Version: ${headData.metadata.version}`);
     
     if (response.content) {
       console.log("\n=== Content ===");

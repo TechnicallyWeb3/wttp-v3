@@ -113,7 +113,7 @@ export async function uploadDirectory(
   
   // Find the index file for the directory
   const indexFile = findIndexFile(sourcePath);
-  const indexLocation = indexFile ? `./${indexFile}` : "./index.html"; // Default to index.html even if it doesn't exist
+  const indexLocation = indexFile ? `./${indexFile}` : "directory:"; // Default to index.html even if it doesn't exist
   
   // Create directory metadata
   const directoryMetadata = createDirectoryMetadata(sourcePath, sourcePath);
@@ -174,10 +174,11 @@ export async function uploadDirectory(
   royalty[0] = await dpr.getDataPointRoyalty(dataPointAddress);
   
   // Use PUT to create the directory resource with custom headers
-  console.log("Creating directory resource with redirect header...");
+  console.log(`Creating directory ${destinationPath}...`);
+
   const putRequest = {
     head: headRequest,
-    mimeType: "0x0000", // No metadata
+    mimeType: "0x0001", // indicates directory
     charset: "0x0000", // No metadata
     encoding: "0x0000", // No metadata
     language: "0x0000", // No metadata

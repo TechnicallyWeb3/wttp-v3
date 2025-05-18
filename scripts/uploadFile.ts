@@ -72,6 +72,33 @@ export function mimeTypeToBytes2(mimeType: string): string {
   return mimeTypeMap[mimeType] || '0x6273'; // Default to binary stream
 }
 
+export function bytes2ToMimeType(bytes2Value: string): string {
+  // Map 2-byte identifiers back to MIME types
+  const bytes2ToMimeMap: Record<string, string> = {
+    '0x7468': 'text/html',                // th
+    '0x616a': 'application/javascript',   // aj
+    '0x7463': 'text/css',                 // tc
+    '0x746d': 'text/markdown',            // tm
+    '0x7470': 'text/plain',               // tp
+    '0x6178': 'application/xml',          // ax
+    '0x6170': 'application/pdf',          // ap
+    '0x616f': 'application/json',         // ao
+    '0x6970': 'image/png',                // ip
+    '0x696a': 'image/jpeg',               // ij
+    '0x6967': 'image/gif',                // ig
+    '0x6973': 'image/svg+xml',            // is
+    '0x6977': 'image/webp',               // iw
+    '0x6969': 'image/x-icon',             // ii
+    '0x6674': 'font/ttf',                 // ft
+    '0x666f': 'font/otf',                 // fo
+    '0x6677': 'font/woff',                // fw
+    '0x6632': 'font/woff2',               // f2
+    '0x6273': 'application/octet-stream'  // bs
+  };
+  
+  return bytes2ToMimeMap[bytes2Value] || 'application/octet-stream'; // Default to binary stream
+}
+
 // Main upload function
 export async function uploadFile(
   wtppSite: Web3Site,

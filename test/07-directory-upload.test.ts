@@ -107,7 +107,7 @@ describe("Directory Upload Tests", function () {
     expect(headResponse.responseLine.code).to.equal(200n);
     
     // Check metadata
-    expect(headResponse.metadata.mimeType).to.equal("0x0000");
+    expect(headResponse.metadata.mimeType).to.equal("0x0001");
     expect(headResponse.metadata.charset).to.equal("0x0000");
     expect(headResponse.metadata.encoding).to.equal("0x0000");
     expect(headResponse.metadata.language).to.equal("0x0000");

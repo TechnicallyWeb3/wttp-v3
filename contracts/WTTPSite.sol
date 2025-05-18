@@ -317,8 +317,12 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
                 lastModified: 0, // calculated during upload
                 header: _headerAddress
             }));
-            _uploadResource(_path, putRequest.data);
-            _headResponse.responseLine.code = 201; // Created
+            _code = 204; // No Content
+            if (putRequest.data.length > 0) {
+                _uploadResource(_path, putRequest.data);
+                _code = 201; // Created
+            }
+            _headResponse.responseLine.code = _code;
         }
         putResponse.head = _headResponse;
 
@@ -342,13 +346,14 @@ abstract contract WTTPSiteV3 is WTTPStorageV3 {
         HEADResponse memory _headResponse = _HEAD(_headRequest);
 
         if (
-            _headResponse.responseLine.code == 500
+            _headResponse.responseLine.code == 500 &&
+            patchRequest.data.length > 0
         ) {
             patchResponse.dataPoints = _uploadResource(
                 _headRequest.requestLine.path, 
                 patchRequest.data
             );
-            _headResponse.responseLine.code = 204; // No Content
+            _headResponse.responseLine.code = 200; // OK
         }
 
         patchResponse.head = _headResponse;

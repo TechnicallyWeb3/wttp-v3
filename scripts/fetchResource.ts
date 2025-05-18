@@ -1,7 +1,13 @@
 // Import ethers from the hardhat runtime environment when running
 // but allow direct import from ethers package when imported
+
+// WTTPSiteModule#DataPointStorageV2 - 0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E
+// WTTPSiteModule#WTTPGatewayV3 - 0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690
+// WTTPSiteModule#DataPointRegistryV2 - 0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB
+// WTTPSiteModule#Web3Site - 0x9E545E3C0baAB3E08CdfD552C960A1050f373042
+
 import type { WTTPGatewayV3 } from "../typechain-types";
-import type { ethers } from "ethers";
+import { ethers } from "hardhat";
 
 /**
  * Fetches a resource from a WTTP site via the WTTPGateway
@@ -45,7 +51,6 @@ export async function fetchResource(
     console.log(`Sending HEAD request for ${path}`);
     return gateway.HEAD(site, { requestLine: head.requestLine, ifModifiedSince, ifNoneMatch });
   }
-
   // Otherwise, create a GET request
   const getRequest = {
     head,
@@ -67,12 +72,22 @@ export async function fetchResource(
   return response;
 }
 
+export function isText(mimeType: string): boolean {
+  return mimeType === "0x7470" || // text/plain (tp)
+    mimeType === "0x7468" || // text/html (th)
+    mimeType === "0x7463" || // text/css (tc)
+    mimeType === "0x746d" || // text/markdown (tm)
+    mimeType === "0x616a" || // application/javascript (aj)
+    mimeType === "0x616f" || // application/json (ao)
+    mimeType === "0x6178" || // application/xml (ax)
+    mimeType === "0x6973";   // image/svg+xml (is)
+}
+
 /**
  * Main function to fetch a resource
  */
 export async function main(
-  hre: any,
-  gatewayAddress: string,
+  gateway: WTTPGatewayV3,
   siteAddress: string,
   path: string,
   options: {
@@ -82,8 +97,6 @@ export async function main(
     headRequest?: boolean
   } = {}
 ) {
-  // Connect to the gateway contract
-  const gateway = await hre.ethers.getContractAt("WTTPGatewayV3", gatewayAddress);
   
   // Fetch the resource
   const response = await fetchResource(gateway, siteAddress, path, options);
@@ -102,10 +115,9 @@ export async function main(
   if (response.head.responseLine.code === 200 || response.head.responseLine.code === 206) {
     // Convert the response data to a string if it's text
     const mimeType = response.head.metadata.mimeType;
-    const isText = hre.ethers.toUtf8String(mimeType) === "tp"; // text/plain
     
-    if (isText) {
-      content = hre.ethers.toUtf8String(response.data);
+    if (isText(mimeType)) {
+      content = ethers.toUtf8String(response.data);
     } else {
       content = `<Binary data: ${response.data.length} bytes>`;
     }

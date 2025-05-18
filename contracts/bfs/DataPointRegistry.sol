@@ -143,6 +143,12 @@ contract DataPointRegistryV2 is Ownable {
         dataPointAddress = DPS_.calculateAddress(_dataPoint);
         DataPointRoyalty storage royalty = dataPointRoyalty[dataPointAddress];
 
+        // if the data point is already owned by the publisher, we can return the address without doing anything
+        if (royalty.publisher == msg.sender) {
+            publisherBalance[royalty.publisher] += msg.value;
+            return dataPointAddress;
+        }
+
         // if the data point is new, we need to write it to the storage contract
         if (DPS_.dataPointSize(dataPointAddress) == 0) {
             

@@ -1,0 +1,22 @@
+{
+  "directory": {
+    "images": {
+      "directory": true
+    },
+    "index.html": {
+      "mimeType": "text/html",
+      "charset": "utf-8",
+      "encoding": "identity",
+      "language": "en-US"
+    },
+    "js": {
+      "directory": true
+    },
+    "style.css": {
+      "mimeType": "text/css",
+      "charset": "utf-8",
+      "encoding": "identity",
+      "language": "en-US"
+    }
+  }
+}

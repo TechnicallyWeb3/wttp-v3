@@ -33,7 +33,7 @@ contract WTTPGatewayV3 {
         GETRequest memory _getRequest
     ) public view returns (GETResponse memory _getResponse) {
         // Get the full response from the site
-        LOCATEResponse memory locateResponse = IWTTPSiteV3(_site).LOCATE(_getRequest.head);
+        LOCATEResponse memory locateResponse = IWTTPSiteV3(_site).GET(_getRequest.head);
         
         // Convert range to absolute indices and check bounds
         (uint256 _start, uint256 _end, bool _outOfBounds) = resolveByteRange(
@@ -63,7 +63,7 @@ contract WTTPGatewayV3 {
             _getResponse.head.responseLine.code = 206; // Partial Content
         } else {
             _getResponse.head = locateResponse.head;
-            _getResponse.head.responseLine.code = 200; // OK
+            _getResponse.head.responseLine.code = locateResponse.head.responseLine.code; // from LOCATE call
             
             // Get full data
             IDataPointStorageV2 dps = IDataPointStorageV2(IWTTPSiteV3(_site).DPS());
@@ -78,7 +78,7 @@ contract WTTPGatewayV3 {
                     fullData[offset++] = dpData[j];
                 }
             }
-            
+            _getResponse.head.metadata.size = totalSize;
             _getResponse.data = fullData;
         }
         
