@@ -4,6 +4,7 @@ import "hardhat-contract-sizer";
 
 // Import tasks
 import "./tasks/upload";
+import "./tasks/fetch";
 
 const config: HardhatUserConfig = {
   solidity: "0.8.28",
