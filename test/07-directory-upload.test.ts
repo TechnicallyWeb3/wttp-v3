@@ -103,8 +103,8 @@ describe("Directory Upload Tests", function () {
     // Check if the directory exists
     expect(headResponse.responseLine.code).to.not.equal(404n);
     
-    // Check if the directory has the correct status code (200 for HEAD request)
-    expect(headResponse.responseLine.code).to.equal(200n);
+    // Check if the directory has the correct status code (300 for directories)
+    expect(headResponse.responseLine.code).to.equal(300n);
     
     // Check metadata
     expect(headResponse.metadata.mimeType).to.equal("0x0001");
@@ -204,8 +204,8 @@ describe("Directory Upload Tests", function () {
     // Check if the directory exists
     expect(headResponse.responseLine.code).to.not.equal(404n);
     
-    // Check if the directory has the correct status code (200 for HEAD request)
-    expect(headResponse.responseLine.code).to.equal(200n);
+    // Check if the directory has the correct status code (300 for directories)
+    expect(headResponse.responseLine.code).to.equal(300n);
     
     // Clean up
     fs.rmSync(noIndexDirPath, { recursive: true, force: true });
