@@ -186,6 +186,30 @@ export async function uploadDirectory(
     const tx = await wtppSite.PATCH(patchRequest, { value: royalty[0] });
     await tx.wait();
     console.log("Directory updated successfully!");
+    
+    // Use DEFINE to ensure the directory has the correct headers
+    const defineRequest = {
+      head: headRequest,
+      data: {
+        methods: 65535, // All methods allowed (2^16 - 1)
+        cache: {
+          maxAge: 0,
+          noStore: false,
+          noCache: false,
+          immutableFlag: false,
+          publicFlag: false
+        },
+        redirect: {
+          code: 300, // Multiple Choices
+          location: indexLocation
+        },
+        resourceAdmin: ethers.ZeroHash
+      }
+    };
+    
+    const defineTx = await wtppSite.DEFINE(defineRequest);
+    await defineTx.wait();
+    console.log("Directory headers updated successfully!");
   } else {
     // Use PUT to create the directory resource with custom headers
     console.log(`Creating directory ${destinationPath}...`);
@@ -212,6 +236,30 @@ export async function uploadDirectory(
     const tx = await wtppSite.PUT(putRequest, { value: royalty[0] });
     await tx.wait();
     console.log("Directory created successfully!");
+    
+    // Use DEFINE to ensure the directory has the correct headers
+    const defineRequest = {
+      head: headRequest,
+      data: {
+        methods: 65535, // All methods allowed (2^16 - 1)
+        cache: {
+          maxAge: 0,
+          noStore: false,
+          noCache: false,
+          immutableFlag: false,
+          publicFlag: false
+        },
+        redirect: {
+          code: 300, // Multiple Choices
+          location: indexLocation
+        },
+        resourceAdmin: ethers.ZeroHash
+      }
+    };
+    
+    const defineTx = await wtppSite.DEFINE(defineRequest);
+    await defineTx.wait();
+    console.log("Directory headers updated successfully!");
   }
   
   // Upload remaining chunks if any
@@ -316,6 +364,30 @@ export async function uploadDirectory(
       const tx = await wtppSite.PATCH(patchRequest, { value: royalty[0] });
       await tx.wait();
       console.log(`Subdirectory ${destinationDirPath} updated successfully!`);
+      
+      // Use DEFINE to ensure the subdirectory has the correct headers
+      const defineRequest = {
+        head: subDirHeadRequest,
+        data: {
+          methods: 65535, // All methods allowed (2^16 - 1)
+          cache: {
+            maxAge: 0,
+            noStore: false,
+            noCache: false,
+            immutableFlag: false,
+            publicFlag: false
+          },
+          redirect: {
+            code: 300, // Multiple Choices
+            location: subDirIndexLocation
+          },
+          resourceAdmin: ethers.ZeroHash
+        }
+      };
+      
+      const defineTx = await wtppSite.DEFINE(defineRequest);
+      await defineTx.wait();
+      console.log(`Subdirectory ${destinationDirPath} headers updated successfully!`);
     } else {
       // Use PUT to create the subdirectory resource with custom headers
       console.log(`Creating subdirectory ${destinationDirPath} with redirect header...`);
@@ -341,6 +413,30 @@ export async function uploadDirectory(
       const tx = await wtppSite.PUT(putRequest, { value: royalty[0] });
       await tx.wait();
       console.log(`Subdirectory ${destinationDirPath} created successfully!`);
+      
+      // Use DEFINE to ensure the subdirectory has the correct headers
+      const defineRequest = {
+        head: subDirHeadRequest,
+        data: {
+          methods: 65535, // All methods allowed (2^16 - 1)
+          cache: {
+            maxAge: 0,
+            noStore: false,
+            noCache: false,
+            immutableFlag: false,
+            publicFlag: false
+          },
+          redirect: {
+            code: 300, // Multiple Choices
+            location: subDirIndexLocation
+          },
+          resourceAdmin: ethers.ZeroHash
+        }
+      };
+      
+      const defineTx = await wtppSite.DEFINE(defineRequest);
+      await defineTx.wait();
+      console.log(`Subdirectory ${destinationDirPath} headers updated successfully!`);
     }
     
     // Upload remaining chunks if any

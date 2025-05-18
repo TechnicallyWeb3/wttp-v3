@@ -90,26 +90,38 @@ describe("Directory Fetch Tests", function () {
     cleanupTestDirectories();
   });
 
-  it("should fetch a directory and verify it has the correct mime type", async function () {
+  it("should fetch a directory and verify it has the correct mime type and status code", async function () {
     // Fetch the directory
     const response = await fetchResource(gateway, await wtppSite.getAddress(), destinationPath);
     
     // Log the response structure to debug
     console.log("Response metadata mimeType:", response.head.metadata.mimeType);
     console.log("Response code:", response.head.responseLine.code.toString());
+    console.log("Response headers:", response.head.headers);
     
     // Check the response
     // For directories, the mime type should be 0x0001
     expect(response.head.metadata.mimeType).to.equal("0x0001"); // Directory mime type
+    
+    // The response code should be 300 (Multiple Choices) for directories
+    // This is set by the DEFINE method in the uploadDirectory script
+    expect(response.head.responseLine.code.toString()).to.equal("300");
   });
 
-  it("should fetch a subdirectory and verify it has the correct mime type", async function () {
+  it("should fetch a subdirectory and verify it has the correct mime type and status code", async function () {
     // Fetch the subdirectory
     const response = await fetchResource(gateway, await wtppSite.getAddress(), destinationPath + "subdir/");
     
+    // Log the response structure to debug
+    console.log("Subdirectory response code:", response.head.responseLine.code.toString());
+    
     // Check the response
     // For directories, the mime type should be 0x0001
     expect(response.head.metadata.mimeType).to.equal("0x0001"); // Directory mime type
+    
+    // The response code should be 300 (Multiple Choices) for directories
+    // This is set by the DEFINE method in the uploadDirectory script
+    expect(response.head.responseLine.code.toString()).to.equal("300");
   });
 
   it("should upload the same directory twice without failing", async function () {
