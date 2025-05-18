@@ -37,16 +37,19 @@ const WTTPSiteModule = buildModule("WTTPSiteModule", (m) => {
       ]);
   
   // Deploy the WTTP site
-  const wtppSite = m.contract("Web3Site", [
+  const wttpSite = m.contract("Web3Site", [
     dataPointRegistry,
     DEFAULT_HEADER,
     owner
   ]);
+
+  const wttpGateway = m.contract("WTTPGatewayV3");
   
   return { 
     dataPointStorage,
     dataPointRegistry,
-    wtppSite
+    wttpSite,
+    wttpGateway
   };
 });
 
