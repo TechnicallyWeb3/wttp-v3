@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { TestStorage, DataPointRegistryV2, DataPointStorageV2 } from "../../typechain-types";
+import { TestStorage, DataPointRegistryV2, DataPointStorageV2 } from "../typechain-types";
 
 describe("TestStorage", function () {
   let testStorage: TestStorage;

@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { TestPermissions } from "../../typechain-types";
+import { TestPermissions } from "../typechain-types";
 
 describe("TestPermissions", function () {
   let testPermissions: TestPermissions;

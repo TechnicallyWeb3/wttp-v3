@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import hre from "hardhat";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { WTTPSiteV3, DataPointRegistryV2, DataPointStorageV2, WTTPGatewayV3 } from "../typechain-types";
 
@@ -245,7 +245,7 @@ describe("WTTPGateway Large-Scale Testing", function () {
         try {
           // Try a simple transaction to see if it works
           await defineResource(TEST_PATH);
-        } catch (error) {
+        } catch (error: any) {
           if (error.message.includes("does not support sending transactions")) {
             console.log("Test environment does not support sending transactions. Running in simulation mode.");
             transactionsSupported = false;

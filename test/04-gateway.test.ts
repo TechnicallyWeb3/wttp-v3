@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { WTTPSiteV3, DataPointRegistryV2, DataPointStorageV2, WTTPGatewayV3 } from "../../typechain-types";
+import { WTTPSiteV3, DataPointRegistryV2, DataPointStorageV2, WTTPGatewayV3 } from "../typechain-types";
 
 describe("WTTPGateway", function () {
   let dps: DataPointStorageV2;
